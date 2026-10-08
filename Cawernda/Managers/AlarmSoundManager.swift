@@ -15,9 +15,16 @@ public final class AlarmSoundManager {
     private var player: AVAudioPlayer?
 
     public static var availableSoundFilenames: [String] {
-        Bundle.main.urls(forResourcesWithExtension: "mp3", subdirectory: "sounds")?
+        resolvedSoundURLs().values
             .map(\.lastPathComponent)
-            .sorted { displayName(for: $0) < displayName(for: $1) } ?? []
+            .sorted { displayName(for: $0) < displayName(for: $1) }
+    }
+
+    public static var userSoundsDirectory: URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent("Cawernda", isDirectory: true)
+            .appendingPathComponent("Sounds", isDirectory: true)
     }
 
     public static func displayName(for filename: String) -> String {
@@ -29,13 +36,23 @@ public final class AlarmSoundManager {
             .joined(separator: " ")
     }
 
-    public static func selectedFilename(defaults: UserDefaults = .standard) -> String? {
+    public static func selectedFilename(
+        defaults: UserDefaults = .standard,
+        availableFilenames: [String]? = nil
+    ) -> String? {
         let filename = defaults.string(forKey: selectionKey) ?? noSoundValue
-        return filename.isEmpty ? nil : filename
+        guard !filename.isEmpty else { return nil }
+        guard let availableFilenames else { return filename }
+        return availableFilenames.contains {
+            $0.caseInsensitiveCompare(filename) == .orderedSame
+        } ? filename : nil
     }
 
     public func playSelectedAlarm(defaults: UserDefaults = .standard) {
-        guard let filename = Self.selectedFilename(defaults: defaults) else {
+        guard let filename = Self.selectedFilename(
+            defaults: defaults,
+            availableFilenames: Self.availableSoundFilenames
+        ) else {
             stop()
             return
         }
@@ -56,11 +73,8 @@ public final class AlarmSoundManager {
     }
 
     private func play(filename: String, playbackCount: Int) {
-        guard let url = Bundle.main.url(
-            forResource: URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent,
-            withExtension: URL(fileURLWithPath: filename).pathExtension,
-            subdirectory: "sounds"
-        ), let soundPlayer = try? AVAudioPlayer(contentsOf: url) else {
+        guard let url = Self.soundURL(for: filename),
+              let soundPlayer = try? AVAudioPlayer(contentsOf: url) else {
             stop()
             return
         }
@@ -70,6 +84,50 @@ public final class AlarmSoundManager {
         soundPlayer.prepareToPlay()
         soundPlayer.play()
         player = soundPlayer
+    }
+
+    static func soundURL(for filename: String) -> URL? {
+        resolvedSoundURLs()[filename.lowercased()]
+    }
+
+    static func resolvedSoundURLs(
+        bundledURLs: [URL]? = nil,
+        userURLs: [URL]? = nil
+    ) -> [String: URL] {
+        let bundled = bundledURLs ?? mp3URLs(in: Bundle.main.resourceURL?
+            .appendingPathComponent("sounds", isDirectory: true))
+        let user = userURLs ?? mp3URLs(in: preparedUserSoundsDirectory())
+
+        var resolved: [String: URL] = [:]
+        for url in bundled where isMP3(url) {
+            resolved[url.lastPathComponent.lowercased()] = url
+        }
+        for url in user where isMP3(url) {
+            resolved[url.lastPathComponent.lowercased()] = url
+        }
+        return resolved
+    }
+
+    private static func preparedUserSoundsDirectory() -> URL? {
+        guard let directory = userSoundsDirectory else { return nil }
+        try? FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        return directory
+    }
+
+    private static func mp3URLs(in directory: URL?) -> [URL] {
+        guard let directory else { return [] }
+        return (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ))?.filter(isMP3) ?? []
+    }
+
+    private static func isMP3(_ url: URL) -> Bool {
+        url.pathExtension.caseInsensitiveCompare("mp3") == .orderedSame
     }
 }
 

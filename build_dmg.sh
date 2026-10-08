@@ -40,7 +40,9 @@ package_app() {
     cp ${ARCH_BIN} ${APP_DIR}/Contents/MacOS/${APP_NAME}
     cp THIRD_PARTY_NOTICES.md ${APP_DIR}/Contents/Resources/THIRD_PARTY_NOTICES.md
     mkdir -p ${APP_DIR}/Contents/Resources/sounds
-    cp -X sounds/*.mp3 ${APP_DIR}/Contents/Resources/sounds/
+    while IFS= read -r -d '' sound_file; do
+        cp -X "${sound_file}" "${APP_DIR}/Contents/Resources/sounds/"
+    done < <(find sounds -maxdepth 1 -type f -iname '*.mp3' -print0)
     chmod +x ${APP_DIR}/Contents/MacOS/${APP_NAME}
 
     echo "📋 Creating Info.plist..."

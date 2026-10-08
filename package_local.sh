@@ -20,7 +20,9 @@ cp "${BIN_DIR}/Cawernda" "${APP_DIR}/Contents/MacOS/Cawernda"
 cp "${PROJECT_DIR}/LocalInfo.plist" "${APP_DIR}/Contents/Info.plist"
 cp "${PROJECT_DIR}/THIRD_PARTY_NOTICES.md" "${APP_DIR}/Contents/Resources/THIRD_PARTY_NOTICES.md"
 mkdir -p "${APP_DIR}/Contents/Resources/sounds"
-cp -X "${PROJECT_DIR}"/sounds/*.mp3 "${APP_DIR}/Contents/Resources/sounds/"
+while IFS= read -r -d '' sound_file; do
+  cp -X "${sound_file}" "${APP_DIR}/Contents/Resources/sounds/"
+done < <(find "${PROJECT_DIR}/sounds" -maxdepth 1 -type f -iname '*.mp3' -print0)
 xcrun actool "${PROJECT_DIR}/Assets.xcassets" \
   --compile "${APP_DIR}/Contents/Resources" \
   --platform macosx \

@@ -25,7 +25,7 @@ Cawernda keeps time-sensitive work visible without becoming a project-management
 - **Upcoming view:** active reminders are grouped into Overdue, Today, Next 7 Days, and Later.
 - **History:** completed and dismissed reminders remain available until explicitly deleted.
 - **Reuse:** recreate a historical reminder with a new date while preserving the original record.
-- **Alarm sounds:** choose No Sound or one of the bundled alarm sounds; acknowledgement stops playback.
+- **Alarm sounds:** choose No Sound, one of three bundled defaults, or a locally installed MP3; acknowledgement stops playback.
 - **Reminder reviews:** optionally show the full-screen active-reminder summary every three or six hours, including after wake.
 - **Local-first:** reminders and preferences stay in macOS `UserDefaults`; there is no account or cloud service.
 
@@ -74,6 +74,18 @@ open artifacts/Cawernda.app
 
 The script creates an ad-hoc-signed development bundle without installing it into `/Applications`.
 
+## Add alarm sounds
+
+To include personal MP3 files in a source build, place them in the project’s `sounds/` directory before running `package_local.sh`. These optional files are ignored by Git and copied into the application bundle automatically.
+
+To add sounds to an installed app without rebuilding, place MP3 files in:
+
+```text
+~/Library/Application Support/Cawernda/Sounds/
+```
+
+Restart Cawernda and select the file in Settings. A user-installed file overrides a bundled sound with the same filename.
+
 
 ## Building from source
 
@@ -110,7 +122,7 @@ Cawernda/
 
 ## Data and privacy
 
-Cawernda stores reminders and preferences locally in `UserDefaults`. It does not require an account, sync data, or make network requests. Bundled sounds are played locally.
+Cawernda stores reminders and preferences locally in `UserDefaults`. It does not require an account, sync data, or make network requests. Bundled and user-installed sounds are played locally.
 
 ## Tests
 
