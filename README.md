@@ -124,6 +124,16 @@ Bug reports, focused feature proposals, and pull requests are welcome.
 
 ---
 
+## About the builder
+
+**Cawernda** is developed and maintained by [Oluwaseun Olorunmeye Daniel](https://www.linkedin.com/in/oluwaseundaniel/) as part of an ongoing practice of designing, building, and shipping useful software.
+
+The name *Cawernda* comes from the charming way my child pronounced “calendar” as a baby.
+
+Originally forked from RemindMe, Cawernda has since evolved into a more comprehensive planning tool, with reminders, nested tasks, history, recurring reviews, and daily planning.
+
+---
+
 ## License
 
 This project contains portions derived from the MIT-licensed RemindMe project. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the required notice and upstream source details.
@@ -133,4 +143,3 @@ This project contains portions derived from the MIT-licensed RemindMe project. S
 <p align="center">
   Built for reminders that should not fall through the cracks.
 </p>
-# Cawernda
