@@ -20,6 +20,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastUsedNotificationStyle: Bool = false
     private var lastUsedThreshold: Int = 10
     private let lastReminderReviewDateKey = "Cawernda.LastReminderReviewDate"
+    private let lastDailyPlanningCheckDateKey = "Cawernda.LastDailyPlanningCheckDate"
+    private var dailyPlanningCheckPending = false
 
     // Default to popup style unless user sets to true in settings
     private var useSystemNotifications: Bool {
@@ -69,6 +71,9 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
 
         startupReminderOverlayController.onOpenCawernda = { [weak self] in
             self?.menuBarController.showPopover(nil)
+        }
+        startupReminderOverlayController.onAddReminder = { [weak self] in
+            self?.commandWindowController.showWindow()
         }
 
         // Wire up hotkey callback
@@ -133,6 +138,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
 
         startTaskTimer()
         startReminderReviewScheduling()
+        beginDailyPlanningCheck()
         showReminderReviewIfNeeded(force: true)
 
     }
@@ -188,6 +194,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         reminderReviewTimer?.invalidate()
         reminderReviewTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
+                self?.resolvePendingDailyPlanningCheck()
                 self?.showReminderReviewIfNeeded()
             }
         }
@@ -198,8 +205,44 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                self?.beginDailyPlanningCheck()
                 self?.showReminderReviewIfNeeded()
             }
+        }
+    }
+
+    private func beginDailyPlanningCheck() {
+        dailyPlanningCheckPending = true
+        resolvePendingDailyPlanningCheck()
+    }
+
+    private func resolvePendingDailyPlanningCheck() {
+        guard dailyPlanningCheckPending else { return }
+
+        let now = taskStore.now()
+        let lastCheckedAt = UserDefaults.standard.object(forKey: lastDailyPlanningCheckDateKey) as? Date
+        let isBusy = lockOverlayController.isVisible
+            || popupManager.hasVisibleAlerts
+            || commandWindowController.window?.isVisible == true
+            || startupReminderOverlayController.isVisible
+
+        switch DailyPlanningPromptPolicy.decision(
+            lastCheckedAt: lastCheckedAt,
+            now: now,
+            activeReminderCount: taskStore.activeTasks.count,
+            isBusy: isBusy
+        ) {
+        case .alreadyHandled:
+            dailyPlanningCheckPending = false
+        case .activeReminders:
+            UserDefaults.standard.set(now, forKey: lastDailyPlanningCheckDateKey)
+            dailyPlanningCheckPending = false
+        case .deferUntilIdle:
+            break
+        case .present:
+            startupReminderOverlayController.showDailyPlanning(now: now)
+            UserDefaults.standard.set(now, forKey: lastDailyPlanningCheckDateKey)
+            dailyPlanningCheckPending = false
         }
     }
 

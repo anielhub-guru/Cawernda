@@ -13,10 +13,19 @@ final class StartupReminderOverlayController {
 
     var onDismiss: (() -> Void)?
     var onOpenCawernda: (() -> Void)?
+    var onAddReminder: (() -> Void)?
     var isVisible: Bool { !panels.isEmpty }
 
     func show(tasks: [ReminderTask], now: Date) {
         guard !tasks.isEmpty else { return }
+        present(mode: .activeReminders(tasks), now: now)
+    }
+
+    func showDailyPlanning(now: Date) {
+        present(mode: .dailyPlanning, now: now)
+    }
+
+    private func present(mode: StartupReminderOverlayMode, now: Date) {
         dismiss(notify: false)
 
         for screen in NSScreen.screens {
@@ -32,12 +41,18 @@ final class StartupReminderOverlayController {
             panel.isOpaque = true
             panel.hasShadow = false
             panel.contentView = NSHostingView(rootView: StartupReminderOverlayView(
-                tasks: tasks,
+                mode: mode,
                 now: now,
                 onDismiss: { [weak self] in self?.dismiss() },
-                onOpenCawernda: { [weak self] in
-                    self?.dismiss()
-                    self?.onOpenCawernda?()
+                onPrimaryAction: { [weak self] in
+                    guard let self else { return }
+                    self.dismiss()
+                    switch mode {
+                    case .activeReminders:
+                        self.onOpenCawernda?()
+                    case .dailyPlanning:
+                        self.onAddReminder?()
+                    }
                 }
             ))
             panel.orderFrontRegardless()
