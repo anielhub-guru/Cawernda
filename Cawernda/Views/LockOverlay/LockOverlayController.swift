@@ -15,21 +15,8 @@ public final class LockOverlayController: NSObject {
     public var onDismiss: (() -> Void)?
     public var isVisible: Bool { !panels.isEmpty }
 
-    // Rotating calm message index in-memory (not persisted)
-    private static var messageIndex = 0
-
-    private let calmMessages = [
-        "Take a deep breath.",
-        "Relax your shoulders.",
-        "Rest your eyes.",
-        "Stretch your arms.",
-        "Look at something far away.",
-        "Clear your mind.",
-        "Release any tension.",
-        "Enjoy this quiet moment.",
-        "Inhale peace, exhale stress.",
-        "You are doing great."
-    ]
+    // Rotating break prompt index in-memory (not persisted)
+    private static var promptIndex = 0
 
     public override init() {
         super.init()
@@ -39,8 +26,9 @@ public final class LockOverlayController: NSObject {
         // Dismiss any existing overlays first
         dismiss(incrementBreak: false)
 
-        let message = calmMessages[Self.messageIndex]
-        Self.messageIndex = (Self.messageIndex + 1) % calmMessages.count
+        let prompts = BreakPrompt.allCases
+        let prompt = prompts[Self.promptIndex]
+        Self.promptIndex = (Self.promptIndex + 1) % prompts.count
 
         let breaksCount = breakStore.breaksToday
 
@@ -60,7 +48,7 @@ public final class LockOverlayController: NSObject {
 
             let swiftUIView = LockOverlayView(
                 duration: duration,
-                calmMessage: message,
+                prompt: prompt,
                 breaksToday: breaksCount,
                 onComplete: { [weak self] in
                     self?.dismiss(incrementBreak: true)

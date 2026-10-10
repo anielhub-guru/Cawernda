@@ -2,7 +2,7 @@ import SwiftUI
 
 public struct LockOverlayView: View {
     let duration: TimeInterval
-    let calmMessage: String
+    let prompt: BreakPrompt
     let breaksToday: Int
     let onComplete: () -> Void
     let onEscape: () -> Void
@@ -34,13 +34,13 @@ public struct LockOverlayView: View {
 
     public init(
         duration: TimeInterval,
-        calmMessage: String,
+        prompt: BreakPrompt,
         breaksToday: Int,
         onComplete: @escaping () -> Void,
         onEscape: @escaping () -> Void
     ) {
         self.duration = duration
-        self.calmMessage = calmMessage
+        self.prompt = prompt
         self.breaksToday = breaksToday
         self.onComplete = onComplete
         self.onEscape = onEscape
@@ -100,21 +100,29 @@ public struct LockOverlayView: View {
                                 .minimumScaleFactor(0.5)
                         }
 
-                        // Sinclair/Cos-animated look-away eyes
-                        LookAwayEyesView(phase: elapsed * 1.5)
+                        BreakActivityAnimationView(prompt: prompt, phase: elapsed)
+                            .frame(height: 88)
+                            .accessibilityHidden(true)
 
                         // Messages group
-                        VStack(spacing: 16) {
-                            Text(calmMessage)
+                        VStack(spacing: 10) {
+                            Text(prompt.instruction)
                                 .font(.system(.title2, design: .rounded))
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 600)
 
+                            Text(prompt.guidance)
+                                .font(.system(.body, design: .rounded))
+                                .foregroundColor(.white.opacity(0.58))
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: 600)
+
                             Text("\(breaksToday) breaks today")
                                 .font(.system(.body, design: .rounded))
                                 .foregroundColor(.secondary)
+                                .padding(.top, 6)
                         }
                     }
                     .onChange(of: secondsInt) { _, newValue in
@@ -171,6 +179,107 @@ public struct LockOverlayView: View {
                     escPressedOnce = false
                 }
             }
+        }
+    }
+}
+
+// MARK: - Break activity animations
+
+struct BreakActivityAnimationView: View {
+    let prompt: BreakPrompt
+    let phase: Double
+
+    @ViewBuilder
+    var body: some View {
+        switch prompt {
+        case .standUp:
+            Image(systemName: "figure.stand")
+                .font(.system(size: 68, weight: .light))
+                .foregroundStyle(.white)
+                .offset(y: -abs(sin(phase * 1.4)) * 8)
+
+        case .shortWalk:
+            Image(systemName: "figure.walk.motion")
+                .font(.system(size: 68, weight: .light))
+                .foregroundStyle(.white)
+                .offset(x: sin(phase * 1.8) * 20)
+
+        case .lookIntoDistance:
+            LookAwayEyesView(phase: phase * 1.5)
+
+        case .blinkSlowly:
+            BlinkingEyesView(phase: phase)
+
+        case .relaxShoulders:
+            Image(systemName: "figure.arms.open")
+                .font(.system(size: 68, weight: .light))
+                .foregroundStyle(.white)
+                .rotationEffect(.degrees(sin(phase * 1.2) * 4))
+                .scaleEffect(1 + abs(sin(phase * 1.2)) * 0.06)
+
+        case .stretchHandsAndWrists:
+            HStack(spacing: 28) {
+                Image(systemName: "hand.raised.fill")
+                    .rotationEffect(.degrees(-10 + sin(phase * 1.8) * 10))
+                Image(systemName: "hand.raised.fill")
+                    .scaleEffect(x: -1, y: 1)
+                    .rotationEffect(.degrees(10 - sin(phase * 1.8) * 10))
+            }
+            .font(.system(size: 52, weight: .light))
+            .foregroundStyle(.white)
+
+        case .standAndReach:
+            ZStack {
+                Image(systemName: "figure.stand")
+                    .font(.system(size: 68, weight: .light))
+                HStack(spacing: 46) {
+                    Image(systemName: "arrow.up")
+                    Image(systemName: "arrow.up")
+                }
+                .font(.system(size: 18, weight: .semibold))
+                .offset(y: -24 - abs(sin(phase * 1.4)) * 7)
+            }
+            .foregroundStyle(.white)
+            .offset(y: -abs(sin(phase * 1.4)) * 4)
+
+        case .breatheSlowly:
+            BreatheAnimationView(phase: phase)
+        }
+    }
+}
+
+struct BlinkingEyesView: View {
+    let phase: Double
+
+    private var openness: CGFloat {
+        1 - pow(max(0, sin(phase * 1.6)), 18) * 0.88
+    }
+
+    var body: some View {
+        HStack(spacing: 20) {
+            EyeView(pupilOffset: .zero)
+            EyeView(pupilOffset: .zero)
+        }
+        .scaleEffect(x: 1, y: openness)
+    }
+}
+
+struct BreatheAnimationView: View {
+    let phase: Double
+
+    private var expansion: CGFloat {
+        0.78 + (sin(phase * 0.75) + 1) * 0.11
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                .frame(width: 82, height: 82)
+            Circle()
+                .fill(Color.white.opacity(0.88))
+                .frame(width: 66, height: 66)
+                .scaleEffect(expansion)
         }
     }
 }

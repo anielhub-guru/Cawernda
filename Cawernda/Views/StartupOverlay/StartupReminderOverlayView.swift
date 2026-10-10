@@ -40,6 +40,9 @@ struct StartupReminderOverlayView: View {
             HStack(spacing: 12) {
                 dismissButton
                 primaryButton
+                dismissButton
+                    .hidden()
+                    .accessibilityHidden(true)
             }
         case .dailyPlanning:
             HStack(spacing: 12) {

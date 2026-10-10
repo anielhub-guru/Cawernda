@@ -78,8 +78,8 @@ public struct SettingsView: View {
     @AppStorage("reminderReviewIntervalHours") private var reminderReviewIntervalHours = 3
 
     @AppStorage("enablePeriodicBreaks") private var enablePeriodicBreaks = false
-    @AppStorage("periodicBreakInterval") private var periodicBreakInterval = 25
-    @AppStorage("periodicBreakDuration") private var periodicBreakDuration = 30
+    @AppStorage("periodicBreakInterval") private var periodicBreakInterval = BreakReminderDefaults.intervalMinutes
+    @AppStorage("periodicBreakDuration") private var periodicBreakDuration = BreakReminderDefaults.durationSeconds
 
     @Binding public var currentShortcut: Shortcut
     @State private var isRecording = false
@@ -303,7 +303,7 @@ public struct SettingsView: View {
                     .foregroundColor(.secondary.opacity(0.5))
                     .italic()
 
-                Text("Cawernda \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                Text(appVersionLabel)
                     .font(.system(size: 10))
                     .foregroundColor(.secondary.opacity(0.4))
             }
@@ -319,5 +319,11 @@ public struct SettingsView: View {
                 isRecording = false
             }
         )
+    }
+
+    private var appVersionLabel: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Development"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        return build.map { "Cawernda v\(version) (\($0))" } ?? "Cawernda v\(version)"
     }
 }

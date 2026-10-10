@@ -32,13 +32,13 @@ public final class BreakManager: ObservableObject {
 
     private var breakInterval: TimeInterval {
         let mins = UserDefaults.standard.integer(forKey: "periodicBreakInterval")
-        let interval = mins == 0 ? 25 : mins
+        let interval = mins == 0 ? BreakReminderDefaults.intervalMinutes : mins
         return TimeInterval(interval * 60)
     }
 
     private var breakDuration: TimeInterval {
         let secs = UserDefaults.standard.integer(forKey: "periodicBreakDuration")
-        return secs == 0 ? 30 : TimeInterval(secs)
+        return TimeInterval(secs == 0 ? BreakReminderDefaults.durationSeconds : secs)
     }
 
     public func setupTimer() {
