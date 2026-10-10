@@ -23,14 +23,7 @@ struct StartupReminderOverlayView: View {
 
                 overlayContent
 
-                HStack(spacing: 12) {
-                    Button(dismissButtonTitle, action: onDismiss)
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                    Button(primaryButtonTitle, action: onPrimaryAction)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                }
+                actionButtons
 
                 Text("Press Esc to dismiss")
                     .font(.system(size: 12, design: .rounded))
@@ -38,6 +31,37 @@ struct StartupReminderOverlayView: View {
             }
             .padding(40)
         }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        switch mode {
+        case .activeReminders:
+            HStack(spacing: 12) {
+                dismissButton
+                primaryButton
+            }
+        case .dailyPlanning:
+            HStack(spacing: 12) {
+                dismissButton
+                primaryButton
+                dismissButton
+                    .hidden()
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var dismissButton: some View {
+        Button(dismissButtonTitle, action: onDismiss)
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+    }
+
+    private var primaryButton: some View {
+        Button(primaryButtonTitle, action: onPrimaryAction)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
     }
 
     @ViewBuilder
