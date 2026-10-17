@@ -1,6 +1,15 @@
 import AppKit
 import ServiceManagement
 
+enum ReminderAlertPresentationPolicy {
+    static func shouldShowPopup(
+        useSystemNotifications: Bool,
+        hasSelectedAlarmSound: Bool
+    ) -> Bool {
+        !useSystemNotifications || hasSelectedAlarmSound
+    }
+}
+
 @MainActor
 public class AppDelegate: NSObject, NSApplicationDelegate {
     public var taskStore: TaskStore!
@@ -174,18 +183,30 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private func checkTasks() {
         let now = taskStore.now()
         let firingTasks = taskStore.activeTasks.filter { $0.reminderFiresAt <= now && !$0.reminderFired }
-
-        if !firingTasks.isEmpty {
-            AlarmSoundManager.shared.playSelectedAlarm()
-        }
+        let hasSelectedAlarmSound = AlarmSoundManager.selectedFilename(
+            availableFilenames: AlarmSoundManager.availableSoundFilenames
+        ) != nil
+        let shouldShowPopup = ReminderAlertPresentationPolicy.shouldShowPopup(
+            useSystemNotifications: useSystemNotifications,
+            hasSelectedAlarmSound: hasSelectedAlarmSound
+        )
 
         for task in firingTasks {
-            if useSystemNotifications {
-                NotificationManager.deliverSystemNotification(for: task)
-                taskStore.markFired(id: task.id)
-            } else {
+            if shouldShowPopup {
                 popupManager.showPopup(for: task)
             }
+
+            if useSystemNotifications {
+                NotificationManager.deliverSystemNotification(for: task)
+            }
+
+            if !shouldShowPopup {
+                taskStore.markFired(id: task.id)
+            }
+        }
+
+        if shouldShowPopup && !firingTasks.isEmpty {
+            AlarmSoundManager.shared.playSelectedAlarm()
         }
     }
 

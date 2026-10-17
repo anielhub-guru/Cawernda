@@ -10,4 +10,18 @@ final class NotificationManagerTests: XCTestCase {
         XCTAssertEqual(content.body, task.title)
         XCTAssertNil(content.sound)
     }
+
+    func testCustomSoundRequiresPopupEvenWithSystemNotifications() {
+        XCTAssertTrue(ReminderAlertPresentationPolicy.shouldShowPopup(
+            useSystemNotifications: true,
+            hasSelectedAlarmSound: true
+        ))
+    }
+
+    func testNoSoundRetainsNotificationOnlyBehavior() {
+        XCTAssertFalse(ReminderAlertPresentationPolicy.shouldShowPopup(
+            useSystemNotifications: true,
+            hasSelectedAlarmSound: false
+        ))
+    }
 }
