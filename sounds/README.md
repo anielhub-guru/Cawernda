@@ -1,6 +1,6 @@
 # Alarm Sounds
 
-Cawernda ships with three creator-owned defaults:
+Cawenda ships with three creator-owned defaults:
 
 - `default-1.mp3`
 - `default-2.mp3`
@@ -8,4 +8,4 @@ Cawernda ships with three creator-owned defaults:
 
 Additional MP3 files placed in this directory are copied into local builds but ignored by Git.
 
-Installed-app users can add sounds without rebuilding by placing MP3 files in `~/Library/Application Support/Cawernda/Sounds/`. User-installed files override bundled sounds with the same filename.
+Installed-app users can choose **Open Sounds Folder** beside Alarm Sound in Settings and add MP3 files without rebuilding. User-installed files override bundled sounds with the same filename.

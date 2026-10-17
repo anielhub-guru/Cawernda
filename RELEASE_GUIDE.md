@@ -1,4 +1,4 @@
-# Cawernda Release Guide
+# Cawenda Release Guide
 
 Use `package_local.sh` for an ad-hoc signed local build. Use `build_dmg.sh` only when producing signed release archives for distribution.
 
@@ -11,7 +11,7 @@ Copy `.env.example` to `.env`, then set `VERSION`, `BUILD_NUMBER`, the Apple dev
 ```bash
 swift test
 bash package_local.sh
-open artifacts/Cawernda.app
+open artifacts/Cawenda.app
 ```
 
 ## 3. Build the release archives
@@ -33,8 +33,8 @@ git push origin v0.1.0
 
 ```bash
 gh release create v0.1.0 \
-  --title "Cawernda v0.1.0" \
+  --title "Cawenda v0.1.0" \
   --notes "Release notes" \
-  Cawernda_Silicon.dmg Cawernda_Silicon.zip \
-  Cawernda_Intel.dmg Cawernda_Intel.zip
+  Cawenda_Silicon.dmg Cawenda_Silicon.zip \
+  Cawenda_Intel.dmg Cawenda_Intel.zip
 ```

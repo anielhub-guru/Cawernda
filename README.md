@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Cawernda Logo" width="128" height="128">
+  <img src="Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Cawenda Logo" width="128" height="128">
 </p>
 
-<h1 align="center">Cawernda</h1>
+<h1 align="center">Cawenda</h1>
 
 <p align="center">
   <strong>A minimalist, natural language-powered reminder app for macOS</strong>
@@ -15,9 +15,9 @@
 
 ---
 
-## What Cawernda does
+## What Cawenda does
 
-Cawernda keeps time-sensitive work visible without becoming a project-management system. It is designed for renewals, follow-ups, operational deadlines, and anything else that should not fall through the cracks.
+Cawenda keeps time-sensitive work visible without becoming a project-management system. It is designed for renewals, follow-ups, operational deadlines, and anything else that should not fall through the cracks.
 
 - **Fast capture:** press `⌘⇧Space`, type or paste a reminder, and press `⌘↩`.
 - **Natural time tokens:** use `@5m`, `@2h`, or combinations such as `@1h30m`.
@@ -52,7 +52,7 @@ Choose an exact date in the capture window, use **In 1 hour** or **Tomorrow**, o
 ## Reminder lifecycle
 
 1. New reminders appear under **Active**.
-2. When due, Cawernda shows an actionable popup or a native macOS notification.
+2. When due, Cawenda shows an actionable popup or a native macOS notification.
 3. **Done** moves the reminder to History; **Snooze** or **Still Running** schedules it again.
 4. History supports individual deletion, bulk deletion, and reuse with a new date.
 
@@ -69,7 +69,7 @@ Choose an exact date in the capture window, use **In 1 hour** or **Tomorrow**, o
 
 ```bash
 bash package_local.sh
-open artifacts/Cawernda.app
+open artifacts/Cawenda.app
 ```
 
 The script creates an ad-hoc-signed development bundle without installing it into `/Applications`.
@@ -78,20 +78,20 @@ The script creates an ad-hoc-signed development bundle without installing it int
 
 To include personal MP3 files in a source build, place them in the project’s `sounds/` directory before running `package_local.sh`. These optional files are ignored by Git and copied into the application bundle automatically.
 
-To add sounds to an installed app without rebuilding, place MP3 files in:
+To add sounds to an installed app without rebuilding, choose **Open Sounds Folder** beside Alarm Sound in Settings, then place MP3 files in:
 
 ```text
-~/Library/Application Support/Cawernda/Sounds/
+~/Library/Application Support/Cawenda/Sounds/
 ```
 
-Restart Cawernda and select the file in Settings. A user-installed file overrides a bundled sound with the same filename.
+Return to Cawenda and select the file in Settings. Files from the former `Cawernda/Sounds` directory are copied into this folder automatically, and a user-installed file overrides a bundled sound with the same filename.
 
 
 ## Building from source
 
 ```bash
 swift test
-swift run Cawernda
+swift run Cawenda
 ```
 
 Requirements: macOS 15 or later, Xcode 16 or later, and Swift 6.
@@ -101,10 +101,10 @@ Requirements: macOS 15 or later, Xcode 16 or later, and Swift 6.
 ## Project structure
 
 ```
-Cawernda/
+Cawenda/
 ├── App/
 │   ├── AppDelegate.swift
-│   └── CawerndaApp.swift
+│   └── CawendaApp.swift
 ├── Managers/                   # Alarm, notification, hotkey, battery, and break behavior
 ├── Models/
 │   ├── ReminderReviewPolicy.swift
@@ -122,7 +122,7 @@ Cawernda/
 
 ## Data and privacy
 
-Cawernda stores reminders and preferences locally in `UserDefaults`. It does not require an account, sync data, or make network requests. Bundled and user-installed sounds are played locally.
+Cawenda stores reminders and preferences locally in `UserDefaults`. It does not require an account, sync data, or make network requests. Bundled and user-installed sounds are played locally.
 
 ## Tests
 
@@ -138,11 +138,11 @@ Bug reports, focused feature proposals, and pull requests are welcome.
 
 ## About the builder
 
-**Cawernda** is developed and maintained by [Oluwaseun Olorunmeye Daniel](https://www.linkedin.com/in/oluwaseundaniel/) as part of an ongoing practice of designing, building, and shipping useful software.
+**Cawenda** is developed and maintained by [Oluwaseun Olorunmeye Daniel](https://www.linkedin.com/in/oluwaseundaniel/) as part of an ongoing practice of designing, building, and shipping useful software.
 
-The name *Cawernda* comes from the charming way my child pronounced “calendar” as a baby.
+The name *Cawenda* comes from the charming way my child pronounced “calendar” as a baby.
 
-Originally forked from RemindMe, Cawernda has since evolved into a more comprehensive planning tool, with reminders, nested tasks, history, recurring reviews, and daily planning.
+Originally forked from RemindMe, Cawenda has since evolved into a more comprehensive planning tool, with reminders, nested tasks, history, recurring reviews, and daily planning.
 
 ---
 

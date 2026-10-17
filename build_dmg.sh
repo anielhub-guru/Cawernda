@@ -101,7 +101,7 @@ EOF
             --timestamp \
             --options runtime \
             --sign "${SIGN_IDENTITY}" \
-            --entitlements Cawernda.entitlements \
+            --entitlements Cawenda.entitlements \
             ${APP_DIR}; then
             SIGN_OK=true
             break
@@ -160,8 +160,8 @@ EOF
     echo "✅ Finished ${SUFFIX}: ${DMG_NAME}"
 }
 
-package_app ".build/arm64-apple-macosx/release/Cawernda" "Silicon"
-package_app ".build/x86_64-apple-macosx/release/Cawernda" "Intel"
+package_app ".build/arm64-apple-macosx/release/Cawenda" "Silicon"
+package_app ".build/x86_64-apple-macosx/release/Cawenda" "Intel"
 
 echo ""
 echo "🎉 ALL BUILDS COMPLETE"

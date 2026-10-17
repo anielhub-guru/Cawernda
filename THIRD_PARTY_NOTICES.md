@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Portions of Cawernda are derived from the RemindMe project by Samir Patil and contributors:
+Portions of Cawenda are derived from the RemindMe project by Samir Patil and contributors:
 https://github.com/samirpatil2000/remindme
 
 The RemindMe project is distributed under the MIT License.

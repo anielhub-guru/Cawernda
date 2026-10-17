@@ -2,27 +2,27 @@
 import PackageDescription
 
 let package = Package(
-    name: "Cawernda",
+    name: "Cawenda",
     platforms: [
         .macOS(.v15)
     ],
     products: [
         .executable(
-            name: "Cawernda",
-            targets: ["Cawernda"]
+            name: "Cawenda",
+            targets: ["Cawenda"]
         ),
     ],
     dependencies: [],
     targets: [
         .executableTarget(
-            name: "Cawernda",
+            name: "Cawenda",
             dependencies: [],
-            path: "Cawernda"
+            path: "Cawenda"
         ),
         .testTarget(
-            name: "CawerndaTests",
-            dependencies: ["Cawernda"],
-            path: "CawerndaTests"
+            name: "CawendaTests",
+            dependencies: ["Cawenda"],
+            path: "CawendaTests"
         ),
     ]
 )

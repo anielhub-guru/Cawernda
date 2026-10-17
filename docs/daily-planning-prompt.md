@@ -2,10 +2,10 @@
 
 ## Understanding
 
-- Cawernda should remain useful when there are no active reminders.
+- Cawenda should remain useful when there are no active reminders.
 - Once per local calendar day, the first launch, login, or wake should perform a planning check.
 - If the reminder list is empty, the existing startup overlay should ask, “What do you want to do today?”
-- The primary action opens Cawernda’s quick reminder-entry window.
+- The primary action opens Cawenda’s quick reminder-entry window.
 - Active reminders satisfy the daily check and retain the existing review behavior.
 - The feature remains local-first and does not integrate with Apple Calendar or become a planner.
 
@@ -13,7 +13,7 @@
 
 - The last completed check is stored in `UserDefaults`.
 - Calendar-day comparison uses the Mac’s current calendar and time zone.
-- A busy Cawernda interface defers the check until it is free.
+- A busy Cawenda interface defers the check until it is free.
 - Crossing midnight by itself does not display the prompt.
 - No new user preference is needed for the first version.
 
@@ -27,6 +27,6 @@ The daily prompt provides **Add a reminder**, **Not now**, and Escape. Adding a 
 
 - Reused the existing full-screen startup overlay instead of adding another window controller.
 - Chose local calendar days instead of a rolling 24-hour interval.
-- Chose Cawernda quick entry as the only primary destination.
+- Chose Cawenda quick entry as the only primary destination.
 - Kept the daily prompt independent from the recurring active-reminder review preference.
 - Excluded Apple Calendar, planning features, statistics, accounts, and synchronization.
