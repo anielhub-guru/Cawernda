@@ -1,16 +1,53 @@
 import SwiftUI
 
+enum BreakSkipKey: String {
+    case escape
+    case delete
+
+    var displayName: String {
+        switch self {
+        case .escape: "Esc"
+        case .delete: "Delete"
+        }
+    }
+}
+
+struct BreakSkipPressTracker {
+    private(set) var armedKey: BreakSkipKey?
+    private(set) var expiresAt: Date?
+
+    mutating func register(
+        _ key: BreakSkipKey,
+        at date: Date,
+        interval: TimeInterval = 2
+    ) -> Bool {
+        if armedKey == key, let expiresAt, date <= expiresAt {
+            reset()
+            return true
+        }
+
+        armedKey = key
+        expiresAt = date.addingTimeInterval(interval)
+        return false
+    }
+
+    mutating func reset() {
+        armedKey = nil
+        expiresAt = nil
+    }
+}
+
 public struct LockOverlayView: View {
-    let duration: TimeInterval
+    let startedAt: Date
+    let endsAt: Date
     let prompt: BreakPrompt
     let breaksToday: Int
+    let skipsRemaining: Int?
     let onComplete: () -> Void
-    let onEscape: () -> Void
+    let onSkip: () -> Void
 
-    @State private var escPressedOnce = false
-    @State private var escTimerTask: Task<Void, Never>? = nil
-
-    private let startDate = Date()
+    @State private var skipPressTracker = BreakSkipPressTracker()
+    @State private var skipResetTask: Task<Void, Never>? = nil
 
     // Deterministic static fractional positions for 10 dots
     private struct DotPosition: Identifiable {
@@ -33,17 +70,21 @@ public struct LockOverlayView: View {
     ]
 
     public init(
-        duration: TimeInterval,
+        startedAt: Date,
+        endsAt: Date,
         prompt: BreakPrompt,
         breaksToday: Int,
+        skipsRemaining: Int?,
         onComplete: @escaping () -> Void,
-        onEscape: @escaping () -> Void
+        onSkip: @escaping () -> Void
     ) {
-        self.duration = duration
+        self.startedAt = startedAt
+        self.endsAt = endsAt
         self.prompt = prompt
         self.breaksToday = breaksToday
+        self.skipsRemaining = skipsRemaining
         self.onComplete = onComplete
-        self.onEscape = onEscape
+        self.onSkip = onSkip
     }
 
     public var body: some View {
@@ -61,10 +102,11 @@ public struct LockOverlayView: View {
                 }
 
                 // Main Content View
-                TimelineView(.periodic(from: startDate, by: 1.0)) { context in
-                    let elapsed = context.date.timeIntervalSince(startDate)
-                    let remaining = max(0, duration - elapsed)
-                    let progress = remaining / duration
+                TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                    let duration = max(1, endsAt.timeIntervalSince(startedAt))
+                    let elapsed = max(0, context.date.timeIntervalSince(startedAt))
+                    let remaining = max(0, endsAt.timeIntervalSince(context.date))
+                    let progress = min(1, remaining / duration)
                     let secondsInt = Int(ceil(remaining))
 
                     let minutes = secondsInt / 60
@@ -119,7 +161,7 @@ public struct LockOverlayView: View {
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 600)
 
-                            Text("\(breaksToday) breaks today")
+                            Text(activitySummary)
                                 .font(.system(.body, design: .rounded))
                                 .foregroundColor(.secondary)
                                 .padding(.top, 6)
@@ -132,52 +174,65 @@ public struct LockOverlayView: View {
                     }
                 }
 
-                // Permanent exit hint
+                // Skip instruction and immediate first-press feedback
                 VStack {
                     Spacer()
-                    Text("Press Esc twice to exit")
+                    Text(skipInstruction)
                         .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(0.35))
+                        .foregroundColor(
+                            skipPressTracker.armedKey == nil
+                                ? .white.opacity(0.35)
+                                : .white.opacity(0.8)
+                        )
                         .padding(.bottom, 24)
-                }
-
-                // Escape Hint View
-                if escPressedOnce {
-                    VStack {
-                        Spacer()
-                        Text("Press Esc again to skip")
-                            .font(.system(.body, design: .rounded))
-                            .foregroundColor(.white.opacity(0.8))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.12))
-                            .cornerRadius(18)
-                            .padding(.bottom, 60)
-                            .transition(.opacity)
-                    }
+                        .animation(.easeInOut(duration: 0.2), value: skipPressTracker.armedKey)
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("LockOverlayEscapePressed"))) { _ in
-            handleEscapePress()
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("LockOverlaySkipKeyPressed"))) { notification in
+            guard let rawValue = notification.object as? String,
+                  let key = BreakSkipKey(rawValue: rawValue) else { return }
+            handleSkipKeyPress(key)
         }
+        .onDisappear { skipResetTask?.cancel() }
     }
 
-    private func handleEscapePress() {
-        if escPressedOnce {
-            escTimerTask?.cancel()
-            onEscape()
-        } else {
-            withAnimation(.easeIn(duration: 0.2)) {
-                escPressedOnce = true
-            }
-            escTimerTask?.cancel()
-            escTimerTask = Task {
-                try? await Task.sleep(for: .seconds(2))
-                guard !Task.isCancelled else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
-                    escPressedOnce = false
-                }
+    private var canSkip: Bool {
+        skipsRemaining.map { $0 > 0 } ?? true
+    }
+
+    private var activitySummary: String {
+        guard let skipsRemaining else {
+            return "Rests today: \(breaksToday)"
+        }
+        return "Rests today: \(breaksToday)  •  Skips remaining: \(skipsRemaining)"
+    }
+
+    private var skipInstruction: String {
+        guard canSkip else { return "Break skip limit reached" }
+        guard let armedKey = skipPressTracker.armedKey else {
+            return "Press Esc or Delete twice to skip"
+        }
+        return "Armed — press \(armedKey.displayName) once more to skip"
+    }
+
+    private func handleSkipKeyPress(_ key: BreakSkipKey) {
+        guard canSkip else { return }
+
+        skipResetTask?.cancel()
+        let shouldSkip = withAnimation(.easeIn(duration: 0.2)) {
+            skipPressTracker.register(key, at: Date())
+        }
+        if shouldSkip {
+            onSkip()
+            return
+        }
+
+        skipResetTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                skipPressTracker.reset()
             }
         }
     }

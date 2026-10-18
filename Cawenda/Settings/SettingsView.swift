@@ -80,6 +80,8 @@ public struct SettingsView: View {
     @AppStorage("enablePeriodicBreaks") private var enablePeriodicBreaks = false
     @AppStorage("periodicBreakInterval") private var periodicBreakInterval = BreakReminderDefaults.intervalMinutes
     @AppStorage("periodicBreakDuration") private var periodicBreakDuration = BreakReminderDefaults.durationSeconds
+    @AppStorage(BreakSkipSettings.isEnabledKey) private var enforceDailyBreakSkipLimit = true
+    @AppStorage(BreakSkipSettings.allowanceKey) private var dailyBreakSkipAllowance = BreakSkipSettings.defaultAllowance
 
     @Binding public var currentShortcut: Shortcut
     @State private var isRecording = false
@@ -296,6 +298,31 @@ public struct SettingsView: View {
                                 }
                                 .padding(.leading, 16)
                                 .transition(.opacity.combined(with: .move(edge: .top)))
+
+                                Divider()
+                                    .padding(.leading, 16)
+
+                                Toggle(
+                                    "Limit Daily Break Skips",
+                                    isOn: $enforceDailyBreakSkipLimit.animation(.easeInOut(duration: 0.2))
+                                )
+                                .padding(.leading, 16)
+
+                                if enforceDailyBreakSkipLimit {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Daily Skip Allowance")
+                                            Text("\(dailyBreakSkipAllowance) per day")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Stepper("", value: $dailyBreakSkipAllowance, in: 0...10)
+                                            .labelsHidden()
+                                    }
+                                    .padding(.leading, 32)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                }
                             }
                         }
                         .padding(8)

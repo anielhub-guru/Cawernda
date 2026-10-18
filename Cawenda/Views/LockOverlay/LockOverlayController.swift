@@ -11,6 +11,7 @@ public final class LockOverlayController: NSObject {
     private var panels: [LockOverlayPanel] = []
     private var localEventMonitor: Any?
     private var breakStore = BreakStore()
+    private var wakeObservers: [NSObjectProtocol] = []
 
     public var onDismiss: (() -> Void)?
     public var isVisible: Bool { !panels.isEmpty }
@@ -20,17 +21,45 @@ public final class LockOverlayController: NSObject {
 
     public override init() {
         super.init()
+        observeWakeEvents()
+
+        Task { @MainActor [weak self] in
+            self?.restoreActiveBreakIfNeeded()
+        }
     }
 
     public func show(duration: TimeInterval) {
-        // Dismiss any existing overlays first
-        dismiss(incrementBreak: false)
+        closePanels()
 
         let prompts = BreakPrompt.allCases
         let prompt = prompts[Self.promptIndex]
         Self.promptIndex = (Self.promptIndex + 1) % prompts.count
+        let session = breakStore.beginBreak(duration: duration, prompt: prompt)
+
+        present(session: session)
+    }
+
+    public func restoreActiveBreakIfNeeded() {
+        guard let session = breakStore.activeBreakSession else { return }
+
+        if session.endsAt <= Date() {
+            finishActiveBreak(outcome: .completed)
+            return
+        }
+
+        closePanels()
+        present(session: session)
+    }
+
+    private func present(session: ActiveBreakSession) {
+        let prompt = session.prompt
 
         let breaksCount = breakStore.breaksToday
+        let isSkipLimitEnabled = BreakSkipSettings.isEnabled()
+        let skipAllowance = BreakSkipSettings.allowance()
+        let skipsRemaining = isSkipLimitEnabled
+            ? breakStore.remainingSkips(allowance: skipAllowance)
+            : nil
 
         for screen in NSScreen.screens {
             let panel = LockOverlayPanel(
@@ -47,14 +76,17 @@ public final class LockOverlayController: NSObject {
             panel.hasShadow = false
 
             let swiftUIView = LockOverlayView(
-                duration: duration,
+                startedAt: session.startedAt,
+                endsAt: session.endsAt,
                 prompt: prompt,
                 breaksToday: breaksCount,
+                skipsRemaining: skipsRemaining,
                 onComplete: { [weak self] in
-                    self?.dismiss(incrementBreak: true)
+                    self?.dismiss(outcome: .completed)
                 },
-                onEscape: { [weak self] in
-                    self?.dismiss(incrementBreak: false)
+                onSkip: { [weak self] in
+                    guard skipsRemaining == nil || (skipsRemaining ?? 0) > 0 else { return }
+                    self?.dismiss(outcome: isSkipLimitEnabled ? .skipped : .neutral)
                 }
             )
 
@@ -66,11 +98,24 @@ public final class LockOverlayController: NSObject {
             panels.append(panel)
         }
 
-        // Key monitor: capture Escape (53) key events while overlay is visible
+        // Key monitor: capture Escape (53) and Delete (51) while overlay is visible.
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if event.keyCode == 53 { // Escape
-                NotificationCenter.default.post(name: NSNotification.Name("LockOverlayEscapePressed"), object: nil)
-                return nil // consume the event
+            let skipKey: BreakSkipKey?
+            switch event.keyCode {
+            case 53:
+                skipKey = .escape
+            case 51:
+                skipKey = .delete
+            default:
+                skipKey = nil
+            }
+
+            if let skipKey {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("LockOverlaySkipKeyPressed"),
+                    object: skipKey.rawValue
+                )
+                return nil
             }
             return event
         }
@@ -80,16 +125,37 @@ public final class LockOverlayController: NSObject {
     }
 
     public func dismiss() {
-        dismiss(incrementBreak: false)
+        dismiss(outcome: .neutral)
     }
 
-    private func dismiss(incrementBreak: Bool) {
-        guard !panels.isEmpty else { return }
+    private enum DismissalOutcome {
+        case completed
+        case skipped
+        case neutral
+    }
 
-        if incrementBreak {
-            breakStore.increment()
+    private func dismiss(outcome: DismissalOutcome) {
+        guard breakStore.activeBreakSession != nil else { return }
+        finishActiveBreak(outcome: outcome)
+    }
+
+    private func finishActiveBreak(outcome: DismissalOutcome) {
+        let didFinish: Bool
+        switch outcome {
+        case .completed:
+            didFinish = breakStore.completeActiveBreak()
+        case .skipped:
+            didFinish = breakStore.skipActiveBreak()
+        case .neutral:
+            breakStore.clearActiveBreak()
+            didFinish = true
         }
 
+        guard didFinish else { return }
+        closePanels(notifyDismissal: true)
+    }
+
+    private func closePanels(notifyDismissal: Bool = false) {
         if let monitor = localEventMonitor {
             NSEvent.removeMonitor(monitor)
             localEventMonitor = nil
@@ -97,6 +163,13 @@ public final class LockOverlayController: NSObject {
 
         let currentPanels = panels
         panels.removeAll()
+
+        guard !currentPanels.isEmpty else {
+            if notifyDismissal {
+                notifyOverlayDismissed()
+            }
+            return
+        }
 
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.5
@@ -108,8 +181,31 @@ public final class LockOverlayController: NSObject {
                 for panel in currentPanels {
                     panel.orderOut(nil)
                 }
-                self.onDismiss?()
-                NotificationCenter.default.post(name: NSNotification.Name("LockOverlayDismissed"), object: nil)
+                if notifyDismissal {
+                    self.notifyOverlayDismissed()
+                }
+            }
+        }
+    }
+
+    private func notifyOverlayDismissed() {
+        onDismiss?()
+        NotificationCenter.default.post(name: NSNotification.Name("LockOverlayDismissed"), object: nil)
+    }
+
+    private func observeWakeEvents() {
+        let center = NSWorkspace.shared.notificationCenter
+        let names: [Notification.Name] = [
+            NSWorkspace.didWakeNotification,
+            NSWorkspace.screensDidWakeNotification,
+            NSWorkspace.sessionDidBecomeActiveNotification
+        ]
+
+        wakeObservers = names.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.restoreActiveBreakIfNeeded()
+                }
             }
         }
     }
