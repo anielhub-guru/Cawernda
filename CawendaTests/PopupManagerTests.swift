@@ -18,7 +18,6 @@ final class PopupManagerTests: XCTestCase {
     var didOpenMenuBar = false
 
     override func setUp() async throws {
-        try await super.setUp()
         userDefaults = UserDefaults(suiteName: suiteName)
         userDefaults.removePersistentDomain(forName: suiteName)
         store = TaskStore(defaults: userDefaults)
@@ -30,7 +29,6 @@ final class PopupManagerTests: XCTestCase {
 
     override func tearDown() async throws {
         userDefaults.removePersistentDomain(forName: suiteName)
-        try await super.tearDown()
     }
 
     func testSingleReminderFiresOneCardCreated() {

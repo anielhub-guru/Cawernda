@@ -9,14 +9,12 @@ final class LockTests: XCTestCase {
     let fixedDate = Date(timeIntervalSince1970: 1_800_000_000)
 
     override func setUp() async throws {
-        try await super.setUp()
         userDefaults = UserDefaults(suiteName: suiteName)
         userDefaults.removePersistentDomain(forName: suiteName)
     }
 
     override func tearDown() async throws {
         userDefaults.removePersistentDomain(forName: suiteName)
-        try await super.tearDown()
     }
 
     func testBreakStoreIncrement() {
