@@ -96,6 +96,28 @@ swift run Cawenda
 
 Requirements: macOS 15 or later, Xcode 16 or later, and Swift 6.
 
+## Public preview releases
+
+Tagged preview builds are produced on GitHub's Intel macOS runner from the public source and published under GitHub Releases with a SHA-256 checksum and build-provenance attestation.
+
+Preview builds are ad-hoc signed and **not Apple-notarized**. macOS may display a security warning. Install only if you are comfortable testing software from this public repository, and do not rely on a preview for safety-critical reminders.
+
+To verify a downloaded archive:
+
+```bash
+shasum -a 256 -c Cawenda-*-macOS-Intel.zip.sha256
+```
+
+After unzipping, move Cawenda to Applications. Control-click it and choose **Open** if macOS displays a warning. Do not disable Gatekeeper globally.
+
+The software is provided “as is,” without warranty of any kind, under the MIT License. See [PREVIEW_RELEASE_NOTES.md](PREVIEW_RELEASE_NOTES.md) and [SECURITY.md](SECURITY.md) before testing.
+
+Maintainers can create an Intel preview archive locally with:
+
+```bash
+BUILD_NUMBER=1 bash scripts/package_preview.sh v0.1.1-preview.1
+```
+
 ---
 
 ## Project structure

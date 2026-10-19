@@ -1,5 +1,20 @@
 # Cawenda Release Guide
 
+## Public preview without Apple Developer membership
+
+Preview tags matching `v*-preview.*` trigger `.github/workflows/preview-release.yml`. The workflow runs tests on a fresh Intel macOS runner, creates an ad-hoc-signed ZIP, publishes a SHA-256 checksum and build attestation, and creates the GitHub Release.
+
+Example tag:
+
+```bash
+git tag v0.1.1-preview.1
+git push origin v0.1.1-preview.1
+```
+
+Do not create or push a preview tag until the release notes, public warning, source state, and website link have been reviewed. Preview builds are not Apple-notarized and must never be described as notarized or fully trusted by Gatekeeper.
+
+## Developer ID release
+
 Use `package_local.sh` for an ad-hoc signed local build. Use `build_dmg.sh` only when producing signed release archives for distribution.
 
 ## 1. Configure the release

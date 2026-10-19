@@ -1,0 +1,54 @@
+name: Preview release
+
+on:
+  push:
+    tags:
+      - "v*-preview.*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-intel-preview:
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: swift test
+
+      - name: Package Intel preview
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: bash scripts/package_preview.sh "${GITHUB_REF_NAME}"
+
+      - name: Attest release archive
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/preview/*.zip
+
+      - name: Publish GitHub preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Cawenda ${GITHUB_REF_NAME}" \
+            --notes-file PREVIEW_RELEASE_NOTES.md \
+            artifacts/preview/*.zip \
+            artifacts/preview/*.sha256
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cawenda-intel-preview-${{ github.ref_name }}
+          path: |
+            artifacts/preview/*.zip
+            artifacts/preview/*.sha256
+          if-no-files-found: error
+          retention-days: 30
