@@ -120,9 +120,16 @@ struct StartupReminderOverlayView: View {
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(2)
-                Text(dueLabel(for: task))
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundStyle(task.reminderFiresAt < now ? Color.orange : Color.white.opacity(0.45))
+                HStack(spacing: 7) {
+                    Text(dueLabel(for: task))
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(task.reminderFiresAt < now ? Color.orange : Color.white.opacity(0.45))
+
+                    RecurrenceIndicator(
+                        repeatIntervalHours: task.repeatIntervalHours,
+                        foregroundColor: Color.white.opacity(0.45)
+                    )
+                }
             }
 
             Spacer()

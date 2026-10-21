@@ -117,6 +117,7 @@ public class PopupManager: ObservableObject {
 
         let cardView = PopupStackView(
             title: taskTitle,
+            repeatIntervalHours: popup.task.repeatIntervalHours,
             onDone: { [weak self] in
                 self?.handleAction(.done, for: taskID)
             },

@@ -619,6 +619,8 @@ private struct ReminderListRow: View {
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundStyle(task.state == .pastDue ? Color.orange : Color.secondary)
 
+                        RecurrenceIndicator(repeatIntervalHours: task.repeatIntervalHours)
+
                         if !task.checklist.isEmpty {
                             Text("·")
                                 .foregroundStyle(.tertiary)

@@ -2,14 +2,22 @@ import SwiftUI
 
 public struct PopupStackView: View {
     public let title: String
+    public let repeatIntervalHours: Int?
     public let firedAt: Date = Date()
     public let onDone: () -> Void
     public let onSnooze: (Int) -> Void
     public let onStillRunning: () -> Void
     @State private var isDismissing = false
 
-    public init(title: String, onDone: @escaping () -> Void, onSnooze: @escaping (Int) -> Void, onStillRunning: @escaping () -> Void) {
+    public init(
+        title: String,
+        repeatIntervalHours: Int? = nil,
+        onDone: @escaping () -> Void,
+        onSnooze: @escaping (Int) -> Void,
+        onStillRunning: @escaping () -> Void
+    ) {
         self.title = title
+        self.repeatIntervalHours = repeatIntervalHours
         self.onDone = onDone
         self.onSnooze = onSnooze
         self.onStillRunning = onStillRunning
@@ -25,10 +33,17 @@ public struct PopupStackView: View {
                         .foregroundStyle(Color(nsColor: .labelColor))
                         .lineLimit(2)
 
-                    TimelineView(.periodic(from: Date(), by: 1.0)) { context in
-                        Text(timeAgoString(from: firedAt, to: context.date))
-                            .font(.footnote)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    HStack(spacing: 7) {
+                        TimelineView(.periodic(from: Date(), by: 1.0)) { context in
+                            Text(timeAgoString(from: firedAt, to: context.date))
+                                .font(.footnote)
+                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                        }
+
+                        RecurrenceIndicator(
+                            repeatIntervalHours: repeatIntervalHours,
+                            foregroundColor: Color(nsColor: .tertiaryLabelColor)
+                        )
                     }
                 }
 
