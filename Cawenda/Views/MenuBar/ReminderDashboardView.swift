@@ -109,13 +109,18 @@ public struct ReminderDashboardView: View {
             }
         }
         .sheet(item: $taskToEdit) { task in
-            EditReminderSheet(task: task) { title, firesAt, checklist in
+            EditReminderSheet(task: task) { title, firesAt, checklist, repeatIntervalHours in
                 taskStore.update(
                     id: task.id,
                     title: title,
                     reminderFiresAt: firesAt,
-                    checklist: checklist
+                    checklist: checklist,
+                    repeatIntervalHours: repeatIntervalHours
                 )
+                taskToEdit = nil
+            } onStopRepeating: {
+                taskStore.stopRepeating(id: task.id)
+                onCompleteReminder(task.id)
                 taskToEdit = nil
             } onCancel: {
                 taskToEdit = nil
@@ -390,24 +395,32 @@ private struct ReuseReminderSheet: View {
 
 private struct EditReminderSheet: View {
     let task: ReminderTask
-    let onSave: (String, Date, [ChecklistItem]) -> Void
+    let onSave: (String, Date, [ChecklistItem], Int?) -> Void
+    let onStopRepeating: () -> Void
     let onCancel: () -> Void
 
     @State private var title: String
     @State private var firesAt: Date
     @State private var checklist: [ChecklistItem]
+    @State private var repeatIntervalHours: Int?
+    @State private var customRepeatHours: Int
+    @State private var isChoosingCustomRepeat = false
 
     init(
         task: ReminderTask,
-        onSave: @escaping (String, Date, [ChecklistItem]) -> Void,
+        onSave: @escaping (String, Date, [ChecklistItem], Int?) -> Void,
+        onStopRepeating: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.task = task
         self.onSave = onSave
+        self.onStopRepeating = onStopRepeating
         self.onCancel = onCancel
         _title = State(initialValue: task.title)
         _firesAt = State(initialValue: task.reminderFiresAt)
         _checklist = State(initialValue: task.checklist)
+        _repeatIntervalHours = State(initialValue: task.repeatIntervalHours)
+        _customRepeatHours = State(initialValue: task.repeatIntervalHours ?? 8)
     }
 
     var body: some View {
@@ -428,6 +441,12 @@ private struct EditReminderSheet: View {
                 selection: $firesAt,
                 displayedComponents: [.date, .hourAndMinute]
             )
+
+            HStack {
+                Text("Repeat")
+                Spacer()
+                recurrenceMenu
+            }
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -474,6 +493,9 @@ private struct EditReminderSheet: View {
             }
 
             HStack {
+                if task.repeatIntervalHours != nil {
+                    Button("Stop Repeating", role: .destructive, action: onStopRepeating)
+                }
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
@@ -485,6 +507,38 @@ private struct EditReminderSheet: View {
         }
         .padding(22)
         .frame(width: 520, height: 430)
+        .sheet(isPresented: $isChoosingCustomRepeat) {
+            CustomEditRepeatIntervalSheet(hours: $customRepeatHours) {
+                repeatIntervalHours = customRepeatHours
+                isChoosingCustomRepeat = false
+            } onCancel: {
+                isChoosingCustomRepeat = false
+            }
+        }
+    }
+
+    private var recurrenceMenu: some View {
+        Menu(repeatIntervalHours.map(repeatOptionLabel) ?? "Does not repeat") {
+            Button("Does not repeat") {
+                repeatIntervalHours = nil
+            }
+            Divider()
+            ForEach([1, 2, 4, 6, 8, 12, 24], id: \.self) { hours in
+                Button(repeatOptionLabel(hours)) {
+                    repeatIntervalHours = hours
+                }
+            }
+            Divider()
+            Button("Custom…") {
+                customRepeatHours = repeatIntervalHours ?? 8
+                isChoosingCustomRepeat = true
+            }
+        }
+        .fixedSize()
+    }
+
+    private func repeatOptionLabel(_ hours: Int) -> String {
+        hours == 1 ? "Every hour" : "Every \(hours) hours"
     }
 
     private func save() {
@@ -493,7 +547,38 @@ private struct EditReminderSheet: View {
             guard !trimmedTitle.isEmpty else { return nil }
             return ChecklistItem(id: item.id, title: trimmedTitle, isCompleted: item.isCompleted)
         }
-        onSave(title.trimmingCharacters(in: .whitespacesAndNewlines), firesAt, normalizedChecklist)
+        onSave(
+            title.trimmingCharacters(in: .whitespacesAndNewlines),
+            firesAt,
+            normalizedChecklist,
+            repeatIntervalHours
+        )
+    }
+}
+
+private struct CustomEditRepeatIntervalSheet: View {
+    @Binding var hours: Int
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Custom repeat interval")
+                .font(.title3.weight(.semibold))
+            Stepper(value: $hours, in: ReminderTask.allowedRepeatIntervalHours) {
+                Text(hours == 1 ? "Every hour" : "Every \(hours) hours")
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Apply", action: onSave)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(22)
+        .frame(width: 320)
     }
 }
 
@@ -611,6 +696,12 @@ private struct ReminderListRow: View {
             Button("Edit", action: onEdit)
             Button("Snooze 10 minutes") {
                 store.markStillRunning(id: task.id, newFiresAt: store.now().addingTimeInterval(600))
+            }
+            if task.repeatIntervalHours != nil {
+                Button("Stop Repeating") {
+                    store.stopRepeating(id: task.id)
+                    onComplete(task.id)
+                }
             }
             Button("Delete", role: .destructive) {
                 store.delete(id: task.id)

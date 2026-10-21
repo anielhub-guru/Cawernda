@@ -61,6 +61,149 @@ final class TaskStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.tasks.first?.title, "Existing reminder")
         XCTAssertEqual(reloaded.tasks.first?.checklist, [])
         XCTAssertNil(reloaded.tasks.first?.manualOrder)
+        XCTAssertNil(reloaded.tasks.first?.repeatIntervalHours)
+        XCTAssertNil(reloaded.tasks.first?.recurrenceAnchorAt)
+    }
+
+    func testCompletingRepeatingReminderAdvancesFromCadenceAnchor() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000)
+        var currentDate = anchor
+        store = TaskStore(defaults: userDefaults, now: { currentDate })
+        let checklistItem = ChecklistItem(title: "Take medication", isCompleted: true)
+        let task = ReminderTask(
+            title: "Medication",
+            reminderFiresAt: anchor,
+            checklist: [checklistItem],
+            repeatIntervalHours: 8,
+            recurrenceAnchorAt: anchor
+        )
+        store.add(task: task)
+
+        currentDate = anchor.addingTimeInterval(2 * 3_600)
+        store.markDone(id: task.id)
+
+        let updated = try XCTUnwrap(store.tasks.first)
+        XCTAssertEqual(updated.state, .active)
+        XCTAssertEqual(updated.reminderFiresAt, anchor.addingTimeInterval(8 * 3_600))
+        XCTAssertFalse(try XCTUnwrap(updated.checklist.first).isCompleted)
+        XCTAssertFalse(updated.reminderFired)
+        XCTAssertNil(updated.completedAt)
+    }
+
+    func testCompletingOverdueRepeatingReminderSkipsMissedOccurrencesWithoutShiftingCadence() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000)
+        let currentDate = anchor.addingTimeInterval(19 * 3_600)
+        store = TaskStore(defaults: userDefaults, now: { currentDate })
+        let task = ReminderTask(
+            title: "Server check",
+            reminderFiresAt: anchor,
+            repeatIntervalHours: 8,
+            recurrenceAnchorAt: anchor
+        )
+        store.add(task: task)
+
+        store.markDone(id: task.id)
+
+        XCTAssertEqual(
+            try XCTUnwrap(store.tasks.first).reminderFiresAt,
+            anchor.addingTimeInterval(24 * 3_600)
+        )
+    }
+
+    func testSnoozeDoesNotShiftRepeatingReminderCadence() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000)
+        var currentDate = anchor
+        store = TaskStore(defaults: userDefaults, now: { currentDate })
+        let task = ReminderTask(
+            title: "Routine",
+            reminderFiresAt: anchor,
+            repeatIntervalHours: 8,
+            recurrenceAnchorAt: anchor
+        )
+        store.add(task: task)
+
+        let snoozedDate = anchor.addingTimeInterval(10 * 3_600)
+        store.markStillRunning(id: task.id, newFiresAt: snoozedDate)
+        currentDate = snoozedDate
+        store.markDone(id: task.id)
+
+        XCTAssertEqual(
+            try XCTUnwrap(store.tasks.first).reminderFiresAt,
+            anchor.addingTimeInterval(16 * 3_600)
+        )
+    }
+
+    func testStopRepeatingMovesSeriesToHistory() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000)
+        store = TaskStore(defaults: userDefaults, now: { anchor })
+        let task = ReminderTask(
+            title: "Routine",
+            reminderFiresAt: anchor,
+            repeatIntervalHours: 8,
+            recurrenceAnchorAt: anchor
+        )
+        store.add(task: task)
+
+        store.stopRepeating(id: task.id)
+
+        XCTAssertEqual(try XCTUnwrap(store.tasks.first).state, .done)
+        XCTAssertEqual(store.historyTasks.map(\.id), [task.id])
+    }
+
+    func testEditingScheduleResetsRecurrenceAnchor() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000)
+        let newAnchor = anchor.addingTimeInterval(3_600)
+        store = TaskStore(defaults: userDefaults, now: { anchor })
+        let task = ReminderTask(
+            title: "Routine",
+            reminderFiresAt: anchor,
+            repeatIntervalHours: 8,
+            recurrenceAnchorAt: anchor
+        )
+        store.add(task: task)
+
+        store.update(
+            id: task.id,
+            title: task.title,
+            reminderFiresAt: newAnchor,
+            checklist: [],
+            repeatIntervalHours: 10
+        )
+
+        let updated = try XCTUnwrap(store.tasks.first)
+        XCTAssertEqual(updated.repeatIntervalHours, 10)
+        XCTAssertEqual(updated.recurrenceAnchorAt, newAnchor)
+    }
+
+    func testRepeatingReminderPersistsAcrossRelaunch() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000)
+        let task = ReminderTask(
+            title: "Persisted routine",
+            reminderFiresAt: anchor,
+            repeatIntervalHours: 8,
+            recurrenceAnchorAt: anchor
+        )
+        store.add(task: task)
+
+        let reloaded = TaskStore(defaults: userDefaults, now: { anchor })
+        let persisted = try XCTUnwrap(reloaded.tasks.first)
+
+        XCTAssertEqual(persisted.repeatIntervalHours, 8)
+        XCTAssertEqual(persisted.recurrenceAnchorAt, anchor)
+    }
+
+    func testInvalidPersistedRepeatIntervalFallsBackToOneTimeReminder() throws {
+        let task = ReminderTask(title: "Invalid routine", reminderFiresAt: Date())
+        let encoded = try JSONEncoder().encode([task])
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [[String: Any]])
+        json[0]["repeatIntervalHours"] = 0
+        json[0]["recurrenceAnchorAt"] = Date().timeIntervalSinceReferenceDate
+        userDefaults.set(try JSONSerialization.data(withJSONObject: json), forKey: "Cawernda.TaskStore.tasks")
+
+        let reloaded = TaskStore(defaults: userDefaults)
+
+        XCTAssertNil(reloaded.tasks.first?.repeatIntervalHours)
+        XCTAssertNil(reloaded.tasks.first?.recurrenceAnchorAt)
     }
 
     func testUpdateEditsExistingReminderAndResetsFiringWhenDateChanges() throws {

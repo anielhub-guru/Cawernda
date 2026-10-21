@@ -9,6 +9,19 @@ public struct ReminderDraft: Equatable {
     public let title: String
     public let checklist: [ChecklistItem]
     public let firesAt: Date
+    public let repeatIntervalHours: Int?
+
+    public init(
+        title: String,
+        checklist: [ChecklistItem],
+        firesAt: Date,
+        repeatIntervalHours: Int? = nil
+    ) {
+        self.title = title
+        self.checklist = checklist
+        self.firesAt = firesAt
+        self.repeatIntervalHours = repeatIntervalHours
+    }
 }
 
 public enum ChecklistParser {

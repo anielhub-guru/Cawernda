@@ -13,6 +13,8 @@ public struct ChecklistItem: Identifiable, Codable, Equatable {
 }
 
 public struct ReminderTask: Identifiable, Codable, Equatable {
+    public static let allowedRepeatIntervalHours = 1...168
+
     public let id: UUID
     public var title: String
     public let createdAt: Date
@@ -28,6 +30,8 @@ public struct ReminderTask: Identifiable, Codable, Equatable {
     public var completedAt: Date?
     public var checklist: [ChecklistItem]
     public var manualOrder: Int?
+    public var repeatIntervalHours: Int?
+    public var recurrenceAnchorAt: Date?
 
     public init(
         id: UUID = UUID(),
@@ -42,7 +46,9 @@ public struct ReminderTask: Identifiable, Codable, Equatable {
         totalSnoozeDelay: TimeInterval = 0,
         completedAt: Date? = nil,
         checklist: [ChecklistItem] = [],
-        manualOrder: Int? = nil
+        manualOrder: Int? = nil,
+        repeatIntervalHours: Int? = nil,
+        recurrenceAnchorAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -58,11 +64,18 @@ public struct ReminderTask: Identifiable, Codable, Equatable {
         self.completedAt = completedAt
         self.checklist = checklist
         self.manualOrder = manualOrder
+        self.repeatIntervalHours = repeatIntervalHours.flatMap {
+            Self.allowedRepeatIntervalHours.contains($0) ? $0 : nil
+        }
+        self.recurrenceAnchorAt = self.repeatIntervalHours == nil
+            ? nil
+            : (recurrenceAnchorAt ?? reminderFiresAt)
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, createdAt, reminderFiresAt, state, reminderFired, reminderFiredAt
         case originalDuration, snoozeCount, totalSnoozeDelay, completedAt, checklist, manualOrder
+        case repeatIntervalHours, recurrenceAnchorAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -81,5 +94,12 @@ public struct ReminderTask: Identifiable, Codable, Equatable {
         completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
         checklist = try container.decodeIfPresent([ChecklistItem].self, forKey: .checklist) ?? []
         manualOrder = try container.decodeIfPresent(Int.self, forKey: .manualOrder)
+        let decodedRepeatInterval = try container.decodeIfPresent(Int.self, forKey: .repeatIntervalHours)
+        repeatIntervalHours = decodedRepeatInterval.flatMap {
+            Self.allowedRepeatIntervalHours.contains($0) ? $0 : nil
+        }
+        recurrenceAnchorAt = repeatIntervalHours == nil
+            ? nil
+            : (try container.decodeIfPresent(Date.self, forKey: .recurrenceAnchorAt) ?? reminderFiresAt)
     }
 }

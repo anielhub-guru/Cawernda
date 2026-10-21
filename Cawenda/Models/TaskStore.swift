@@ -50,11 +50,33 @@ public class TaskStore: ObservableObject {
     }
 
     public func markDone(id: UUID) {
-        if let index = tasks.firstIndex(where: { $0.id == id }) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+
+        if let nextFireDate = nextRecurringFireDate(for: tasks[index]) {
+            tasks[index].state = .active
+            tasks[index].reminderFiresAt = nextFireDate
+            tasks[index].reminderFired = false
+            tasks[index].reminderFiredAt = nil
+            tasks[index].completedAt = nil
+            tasks[index].checklist = tasks[index].checklist.map {
+                ChecklistItem(id: $0.id, title: $0.title)
+            }
+        } else {
             tasks[index].state = .done
             tasks[index].completedAt = now()
-            save()
         }
+        save()
+    }
+
+    public func stopRepeating(id: UUID) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }),
+              tasks[index].repeatIntervalHours != nil else {
+            return
+        }
+
+        tasks[index].state = .done
+        tasks[index].completedAt = now()
+        save()
     }
 
     public func toggleChecklistItem(taskID: UUID, itemID: UUID) {
@@ -70,7 +92,8 @@ public class TaskStore: ObservableObject {
         id: UUID,
         title: String,
         reminderFiresAt: Date,
-        checklist: [ChecklistItem]
+        checklist: [ChecklistItem],
+        repeatIntervalHours: Int? = nil
     ) {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
 
@@ -78,12 +101,20 @@ public class TaskStore: ObservableObject {
         let oldBucket = ReminderGrouping.bucket(for: tasks[index], now: currentDate)
         var updatedTask = tasks[index]
         let dateChanged = updatedTask.reminderFiresAt != reminderFiresAt
+        let normalizedRepeatInterval = repeatIntervalHours.flatMap {
+            ReminderTask.allowedRepeatIntervalHours.contains($0) ? $0 : nil
+        }
+        let recurrenceChanged = updatedTask.repeatIntervalHours != normalizedRepeatInterval
 
         updatedTask.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         updatedTask.reminderFiresAt = reminderFiresAt
         updatedTask.checklist = checklist
+        updatedTask.repeatIntervalHours = normalizedRepeatInterval
+        updatedTask.recurrenceAnchorAt = normalizedRepeatInterval == nil
+            ? nil
+            : ((dateChanged || recurrenceChanged) ? reminderFiresAt : updatedTask.recurrenceAnchorAt ?? reminderFiresAt)
 
-        if dateChanged {
+        if dateChanged || recurrenceChanged {
             updatedTask.originalDuration = reminderFiresAt.timeIntervalSince(updatedTask.createdAt)
             updatedTask.reminderFired = false
             updatedTask.reminderFiredAt = nil
@@ -204,6 +235,20 @@ public class TaskStore: ObservableObject {
         if let encoded = try? JSONEncoder().encode(tasks) {
             defaults.set(encoded, forKey: userDefaultsKey)
         }
+    }
+
+    private func nextRecurringFireDate(for task: ReminderTask) -> Date? {
+        guard let hours = task.repeatIntervalHours,
+              ReminderTask.allowedRepeatIntervalHours.contains(hours),
+              let anchor = task.recurrenceAnchorAt else {
+            return nil
+        }
+
+        let interval = TimeInterval(hours * 3_600)
+        let referenceDate = max(now(), task.reminderFiresAt)
+        let elapsed = referenceDate.timeIntervalSince(anchor)
+        let completedIntervals = max(0, floor(elapsed / interval))
+        return anchor.addingTimeInterval((completedIntervals + 1) * interval)
     }
 
     private func load() {

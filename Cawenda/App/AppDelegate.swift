@@ -69,7 +69,9 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             let task = ReminderTask(
                 title: draft.title,
                 reminderFiresAt: draft.firesAt,
-                checklist: draft.checklist
+                checklist: draft.checklist,
+                repeatIntervalHours: draft.repeatIntervalHours,
+                recurrenceAnchorAt: draft.repeatIntervalHours == nil ? nil : draft.firesAt
             )
             self?.taskStore.add(task: task)
         }

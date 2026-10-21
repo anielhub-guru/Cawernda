@@ -9,6 +9,9 @@ public struct ReminderCaptureView: View {
     @State private var input = ""
     @State private var dueAt = Date().addingTimeInterval(600)
     @State private var hasChosenDate = false
+    @State private var repeatIntervalHours: Int?
+    @State private var customRepeatHours = 8
+    @State private var isChoosingCustomRepeat = false
     @FocusState private var isEditorFocused: Bool
 
     private var parsed: ParsedChecklist? {
@@ -102,6 +105,8 @@ public struct ReminderCaptureView: View {
                     ) ?? Date().addingTimeInterval(86_400)
                 }
 
+                repeatMenu
+
                 Spacer()
 
                 Button("Cancel", action: onCancel)
@@ -115,6 +120,14 @@ public struct ReminderCaptureView: View {
         }
         .padding(20)
         .frame(width: 620, height: 300)
+        .sheet(isPresented: $isChoosingCustomRepeat) {
+            CustomRepeatIntervalSheet(hours: $customRepeatHours) {
+                repeatIntervalHours = customRepeatHours
+                isChoosingCustomRepeat = false
+            } onCancel: {
+                isChoosingCustomRepeat = false
+            }
+        }
         .task(id: state.focusRequestID) {
             if input.isEmpty && !hasChosenDate {
                 dueAt = defaultDueDate
@@ -133,6 +146,39 @@ public struct ReminderCaptureView: View {
         .controlSize(.small)
     }
 
+    private var repeatMenu: some View {
+        Menu {
+            Button("Does not repeat") {
+                repeatIntervalHours = nil
+            }
+
+            Divider()
+
+            ForEach([1, 2, 4, 6, 8, 12, 24], id: \.self) { hours in
+                Button(repeatOptionLabel(hours)) {
+                    repeatIntervalHours = hours
+                }
+            }
+
+            Divider()
+
+            Button("Custom…") {
+                customRepeatHours = repeatIntervalHours ?? 8
+                isChoosingCustomRepeat = true
+            }
+        } label: {
+            Text(repeatIntervalHours.map(repeatOptionLabel) ?? "Repeat")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .controlSize(.small)
+        .help("Repeat on a fixed hourly schedule")
+    }
+
+    private func repeatOptionLabel(_ hours: Int) -> String {
+        hours == 1 ? "Every hour" : "Every \(hours) hours"
+    }
+
     private func createReminder() {
         guard var parsed else { return }
         var fireDate = dueAt
@@ -146,14 +192,50 @@ public struct ReminderCaptureView: View {
             fireDate = scheduled.firesAt
         }
 
-        onCreate(ReminderDraft(title: parsed.title, checklist: parsed.items, firesAt: fireDate))
+        onCreate(
+            ReminderDraft(
+                title: parsed.title,
+                checklist: parsed.items,
+                firesAt: fireDate,
+                repeatIntervalHours: repeatIntervalHours
+            )
+        )
         input = ""
         dueAt = defaultDueDate
         hasChosenDate = false
+        repeatIntervalHours = nil
         onCancel()
     }
 
     private var defaultDueDate: Date {
         Date().addingTimeInterval(TimeInterval(max(1, defaultReminderMinutes) * 60))
+    }
+}
+
+private struct CustomRepeatIntervalSheet: View {
+    @Binding var hours: Int
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Custom repeat interval")
+                .font(.title3.weight(.semibold))
+
+            Stepper(value: $hours, in: ReminderTask.allowedRepeatIntervalHours) {
+                Text(hours == 1 ? "Every hour" : "Every \(hours) hours")
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Apply", action: onSave)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(22)
+        .frame(width: 320)
     }
 }
