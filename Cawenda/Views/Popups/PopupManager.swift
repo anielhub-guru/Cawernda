@@ -36,11 +36,6 @@ public class PopupManager: ObservableObject {
         !visiblePopups.isEmpty || !overflowPopups.isEmpty || batteryPanel != nil
     }
 
-    private let maxVisible = 3
-    private let cardWidth: CGFloat = 380
-    private let cardHeight: CGFloat = 180
-    private let stackGap: CGFloat = 10
-
     public init(
         taskStore: TaskStore,
         alarmSoundController: AlarmSoundControlling = AlarmSoundManager.shared
@@ -52,7 +47,7 @@ public class PopupManager: ObservableObject {
     public func showPopup(for task: ReminderTask) {
         let newPopup = ActivePopup(task: task)
 
-        if visiblePopups.count < maxVisible {
+        if canShowPopup(newPopup) {
             visiblePopups.append(newPopup)
             createAndShowPanel(for: newPopup)
             layoutPanels()
@@ -78,11 +73,7 @@ public class PopupManager: ObservableObject {
                 removed.panel = nil
             }
 
-            if !overflowPopups.isEmpty {
-                let next = overflowPopups.removeFirst()
-                visiblePopups.append(next)
-                createAndShowPanel(for: next)
-            }
+            promoteOverflowPopupsIfPossible()
             layoutPanels()
 
         } else if let index = overflowPopups.firstIndex(where: { $0.id == taskID }) {
@@ -118,6 +109,7 @@ public class PopupManager: ObservableObject {
         let cardView = PopupStackView(
             title: taskTitle,
             repeatIntervalHours: popup.task.repeatIntervalHours,
+            checklist: popup.task.checklist,
             onDone: { [weak self] in
                 self?.handleAction(.done, for: taskID)
             },
@@ -126,6 +118,9 @@ public class PopupManager: ObservableObject {
             },
             onStillRunning: { [weak self] in
                 self?.handleAction(.stillRunning, for: taskID)
+            },
+            onToggleChecklistItem: { [weak self] itemID in
+                self?.taskStore.toggleChecklistItem(taskID: taskID, itemID: itemID)
             }
         )
 
@@ -135,10 +130,14 @@ public class PopupManager: ObservableObject {
         // Initial position — center of screen
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
-        let centerX = screenFrame.midX - cardWidth / 2
+        let cardHeight = PopupLayout.cardHeight(hasChecklist: !popup.task.checklist.isEmpty)
+        let centerX = screenFrame.midX - PopupLayout.cardWidth / 2
         let centerY = screenFrame.midY - cardHeight / 2
 
-        panel.setFrame(NSRect(x: centerX, y: centerY, width: cardWidth, height: cardHeight), display: true)
+        panel.setFrame(
+            NSRect(x: centerX, y: centerY, width: PopupLayout.cardWidth, height: cardHeight),
+            display: true
+        )
         panel.alphaValue = 0
         panel.contentView?.layer?.transform = CATransform3DMakeScale(0.95, 0.95, 1.0)
         panel.orderFrontRegardless()
@@ -158,24 +157,31 @@ public class PopupManager: ObservableObject {
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
 
-        let totalCards = CGFloat(visiblePopups.count)
-        let totalHeight = totalCards * cardHeight + (totalCards - 1) * stackGap
+        let totalHeight = PopupLayout.stackHeight(for: visiblePopups.map(\.task))
 
         // Center the stack on screen
-        let centerX = screenFrame.midX - cardWidth / 2
-        let stackTopY = screenFrame.midY + totalHeight / 2
+        let centerX = screenFrame.midX - PopupLayout.cardWidth / 2
+        var nextTopY = screenFrame.midY + totalHeight / 2
 
-        for (index, popup) in visiblePopups.enumerated() {
+        for popup in visiblePopups {
             guard let panel = popup.panel else { continue }
 
-            let targetY = stackTopY - CGFloat(index + 1) * cardHeight - CGFloat(index) * stackGap
-            let targetFrame = NSRect(x: centerX, y: targetY, width: cardWidth, height: cardHeight)
+            let cardHeight = PopupLayout.cardHeight(hasChecklist: !popup.task.checklist.isEmpty)
+            let targetY = nextTopY - cardHeight
+            let targetFrame = NSRect(
+                x: centerX,
+                y: targetY,
+                width: PopupLayout.cardWidth,
+                height: cardHeight
+            )
 
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.2
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 panel.animator().setFrame(targetFrame, display: true)
             }
+
+            nextTopY = targetY - PopupLayout.stackGap
         }
 
         updateMoreIndicator()
@@ -222,23 +228,49 @@ public class PopupManager: ObservableObject {
         let screenFrame = screen.visibleFrame
 
         let count = overflowPopups.count
-        let indicatorHeight: CGFloat = 40
-
         let view = MoreIndicatorView(count: count) { [weak self] in
             self?.openMenuBar()
         }
 
         if moreIndicatorPanel == nil {
             let panel = PopupCard(view: view)
-            let totalHeight = CGFloat(maxVisible) * cardHeight + CGFloat(maxVisible - 1) * stackGap
-            let centerX = screenFrame.midX - cardWidth / 2
-            let indicatorY = screenFrame.midY - totalHeight / 2 - stackGap - indicatorHeight
+            let totalHeight = PopupLayout.stackHeight(for: visiblePopups.map(\.task))
+            let centerX = screenFrame.midX - PopupLayout.cardWidth / 2
+            let indicatorY = screenFrame.midY
+                - totalHeight / 2
+                - PopupLayout.stackGap
+                - PopupLayout.moreIndicatorHeight
             panel.setFrame(
-                NSRect(x: centerX, y: indicatorY, width: cardWidth, height: indicatorHeight),
+                NSRect(
+                    x: centerX,
+                    y: indicatorY,
+                    width: PopupLayout.cardWidth,
+                    height: PopupLayout.moreIndicatorHeight
+                ),
                 display: true
             )
             panel.orderFrontRegardless()
             moreIndicatorPanel = panel
+        }
+    }
+
+    private func canShowPopup(_ popup: ActivePopup) -> Bool {
+        guard let screen = NSScreen.main else {
+            return visiblePopups.count < PopupLayout.maxVisibleCards
+        }
+
+        return PopupLayout.canAdd(
+            popup.task,
+            to: visiblePopups.map(\.task),
+            screenHeight: screen.visibleFrame.height
+        )
+    }
+
+    private func promoteOverflowPopupsIfPossible() {
+        while let next = overflowPopups.first, canShowPopup(next) {
+            overflowPopups.removeFirst()
+            visiblePopups.append(next)
+            createAndShowPanel(for: next)
         }
     }
 

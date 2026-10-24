@@ -39,6 +39,38 @@ final class PopupManagerTests: XCTestCase {
         XCTAssertEqual(popupManager.overflowPopups.count, 0)
     }
 
+    func testChecklistPresentationPrioritizesRemainingItems() {
+        let remaining = ChecklistItem(title: "Call supplier")
+        let completed = ChecklistItem(title: "Review stock", isCompleted: true)
+        let presentation = PopupChecklistPresentation(items: [completed, remaining])
+
+        XCTAssertEqual(presentation.remainingItems.map(\.id), [remaining.id])
+        XCTAssertEqual(presentation.completedItems.map(\.id), [completed.id])
+        XCTAssertEqual(presentation.completedCount, 1)
+    }
+
+    func testPlainReminderRetainsCompactPopupHeight() {
+        XCTAssertEqual(PopupLayout.cardHeight(hasChecklist: false), 180)
+    }
+
+    func testChecklistReminderUsesExpandedPopupHeight() {
+        XCTAssertGreaterThan(
+            PopupLayout.cardHeight(hasChecklist: true),
+            PopupLayout.cardHeight(hasChecklist: false)
+        )
+    }
+
+    func testExpandedPopupsOverflowBeforeExceedingScreenHeight() {
+        let checklist = [ChecklistItem(title: "First step")]
+        let first = ReminderTask(title: "First", reminderFiresAt: Date(), checklist: checklist)
+        let second = ReminderTask(title: "Second", reminderFiresAt: Date(), checklist: checklist)
+        let third = ReminderTask(title: "Third", reminderFiresAt: Date(), checklist: checklist)
+
+        XCTAssertTrue(PopupLayout.canAdd(first, to: [], screenHeight: 900))
+        XCTAssertTrue(PopupLayout.canAdd(second, to: [first], screenHeight: 900))
+        XCTAssertFalse(PopupLayout.canAdd(third, to: [first, second], screenHeight: 900))
+    }
+
     func testThreeSimultaneousRemindersThreeCardsVisible() {
         popupManager.showPopup(for: ReminderTask(title: "1", reminderFiresAt: Date()))
         popupManager.showPopup(for: ReminderTask(title: "2", reminderFiresAt: Date()))

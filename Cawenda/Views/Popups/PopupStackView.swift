@@ -7,20 +7,31 @@ public struct PopupStackView: View {
     public let onDone: () -> Void
     public let onSnooze: (Int) -> Void
     public let onStillRunning: () -> Void
+    public let onToggleChecklistItem: (UUID) -> Void
     @State private var isDismissing = false
+    @State private var checklist: [ChecklistItem]
+    @State private var isCompletedSectionExpanded = false
 
     public init(
         title: String,
         repeatIntervalHours: Int? = nil,
+        checklist: [ChecklistItem] = [],
         onDone: @escaping () -> Void,
         onSnooze: @escaping (Int) -> Void,
-        onStillRunning: @escaping () -> Void
+        onStillRunning: @escaping () -> Void,
+        onToggleChecklistItem: @escaping (UUID) -> Void = { _ in }
     ) {
         self.title = title
         self.repeatIntervalHours = repeatIntervalHours
         self.onDone = onDone
         self.onSnooze = onSnooze
         self.onStillRunning = onStillRunning
+        self.onToggleChecklistItem = onToggleChecklistItem
+        _checklist = State(initialValue: checklist)
+    }
+
+    private var checklistPresentation: PopupChecklistPresentation {
+        PopupChecklistPresentation(items: checklist)
     }
 
     public var body: some View {
@@ -45,6 +56,10 @@ public struct PopupStackView: View {
                             foregroundColor: Color(nsColor: .tertiaryLabelColor)
                         )
                     }
+                }
+
+                if !checklist.isEmpty {
+                    checklistSection
                 }
 
                 // Primary actions
@@ -81,12 +96,117 @@ public struct PopupStackView: View {
             .padding(.top, 12)
             .padding(.bottom, 18)
         }
-        .frame(width: 380)
+        .frame(
+            width: PopupLayout.cardWidth,
+            height: PopupLayout.cardHeight(hasChecklist: !checklist.isEmpty),
+            alignment: .topLeading
+        )
         .background(Color.clear)
         .scaleEffect(isDismissing ? 0.96 : 1.0)
         .offset(y: isDismissing ? 6 : 0)
         .opacity(isDismissing ? 0 : 1)
         .animation(.easeIn(duration: 0.25), value: isDismissing)
+    }
+
+    private var checklistSection: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Text("Subtasks")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+
+                Spacer()
+
+                Text("\(checklistPresentation.completedCount) of \(checklist.count) completed")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+            }
+
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 9) {
+                    if checklistPresentation.remainingItems.isEmpty {
+                        Label("All subtasks complete", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color(nsColor: .systemGreen))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 5)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 7) {
+                            ForEach(checklistPresentation.remainingItems) { item in
+                                checklistButton(for: item)
+                            }
+                        }
+                    }
+
+                    if !checklistPresentation.completedItems.isEmpty {
+                        DisclosureGroup(isExpanded: $isCompletedSectionExpanded) {
+                            VStack(alignment: .leading, spacing: 7) {
+                                ForEach(checklistPresentation.completedItems) { item in
+                                    checklistButton(for: item)
+                                }
+                            }
+                            .padding(.top, 7)
+                        } label: {
+                            Text("Completed (\(checklistPresentation.completedCount))")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                        }
+                        .tint(Color(nsColor: .tertiaryLabelColor))
+                    }
+                }
+            }
+            .frame(maxHeight: PopupLayout.checklistScrollMaxHeight)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.52))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
+        }
+    }
+
+    private func checklistButton(for item: ChecklistItem) -> some View {
+        Button {
+            toggleChecklistItem(item.id)
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(
+                        item.isCompleted
+                            ? Color(nsColor: .controlAccentColor)
+                            : Color(nsColor: .secondaryLabelColor)
+                    )
+
+                Text(item.title)
+                    .font(.caption)
+                    .foregroundStyle(
+                        item.isCompleted
+                            ? Color(nsColor: .secondaryLabelColor)
+                            : Color(nsColor: .labelColor)
+                    )
+                    .strikethrough(item.isCompleted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(item.title)
+        .accessibilityValue(item.isCompleted ? "Completed" : "Not completed")
+        .accessibilityHint(item.isCompleted ? "Unchecks this subtask" : "Checks this subtask")
+    }
+
+    private func toggleChecklistItem(_ itemID: UUID) {
+        guard let index = checklist.firstIndex(where: { $0.id == itemID }) else { return }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            checklist[index].isCompleted.toggle()
+        }
+        onToggleChecklistItem(itemID)
     }
 
     private func timeAgoString(from date: Date, to now: Date) -> String {
@@ -108,6 +228,51 @@ public struct PopupStackView: View {
             try? await Task.sleep(for: .milliseconds(250))
             action()
         }
+    }
+}
+
+struct PopupChecklistPresentation {
+    let remainingItems: [ChecklistItem]
+    let completedItems: [ChecklistItem]
+
+    init(items: [ChecklistItem]) {
+        remainingItems = items.filter { !$0.isCompleted }
+        completedItems = items.filter(\.isCompleted)
+    }
+
+    var completedCount: Int {
+        completedItems.count
+    }
+}
+
+enum PopupLayout {
+    static let cardWidth: CGFloat = 380
+    static let compactCardHeight: CGFloat = 180
+    static let checklistCardHeight: CGFloat = 360
+    static let checklistScrollMaxHeight: CGFloat = 142
+    static let stackGap: CGFloat = 10
+    static let moreIndicatorHeight: CGFloat = 40
+    static let reservedVerticalSpace: CGFloat = 100
+    static let maxVisibleCards = 3
+
+    static func cardHeight(hasChecklist: Bool) -> CGFloat {
+        hasChecklist ? checklistCardHeight : compactCardHeight
+    }
+
+    static func stackHeight(for tasks: [ReminderTask]) -> CGFloat {
+        guard !tasks.isEmpty else { return 0 }
+
+        let cardsHeight = tasks.reduce(CGFloat.zero) { total, task in
+            total + cardHeight(hasChecklist: !task.checklist.isEmpty)
+        }
+        return cardsHeight + CGFloat(tasks.count - 1) * stackGap
+    }
+
+    static func canAdd(_ task: ReminderTask, to visibleTasks: [ReminderTask], screenHeight: CGFloat) -> Bool {
+        guard visibleTasks.count < maxVisibleCards else { return false }
+        guard !visibleTasks.isEmpty else { return true }
+
+        return stackHeight(for: visibleTasks + [task]) <= max(0, screenHeight - reservedVerticalSpace)
     }
 }
 
