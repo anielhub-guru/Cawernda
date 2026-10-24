@@ -72,7 +72,7 @@ public class ShortcutRecorderNSView: NSView {
 public struct SettingsView: View {
     @AppStorage("defaultReminderMinutes") private var defaultMinutes = 10
     @AppStorage("useSystemNotifications") private var useSystemNotifications = false
-    @AppStorage(AlarmSoundManager.selectionKey) private var alarmSoundFilename = AlarmSoundManager.noSoundValue
+    @AppStorage(AlarmSoundManager.selectionKey) private var alarmSoundFilename = AlarmSoundManager.defaultSoundFilename
     @AppStorage("enableLowBatteryAlert") private var enableLowBatteryAlert = false
     @AppStorage("lowBatteryThreshold") private var lowBatteryThreshold = 10
     @AppStorage("reminderReviewIntervalHours") private var reminderReviewIntervalHours = 3

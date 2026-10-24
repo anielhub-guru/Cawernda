@@ -1,7 +1,8 @@
 # Alarm Sounds
 
-Cawenda ships with three creator-owned defaults:
+Cawenda ships with four creator-owned defaults:
 
+- `Morning String Rift.mp3` — the default alarm sound
 - `default-1.mp3`
 - `default-2.mp3`
 - `default-3.mp3`

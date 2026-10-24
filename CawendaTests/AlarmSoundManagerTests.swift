@@ -3,10 +3,22 @@ import XCTest
 
 @MainActor
 final class AlarmSoundManagerTests: XCTestCase {
-    func testNoSoundIsTheDefault() {
+    func testMorningStringRiftIsTheDefault() {
         let suiteName = "AlarmSoundManagerTests.NoSound"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
+
+        XCTAssertEqual(
+            AlarmSoundManager.selectedFilename(defaults: defaults),
+            "Morning String Rift.mp3"
+        )
+    }
+
+    func testExplicitNoSoundSelectionIsPreserved() {
+        let suiteName = "AlarmSoundManagerTests.ExplicitNoSound"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(AlarmSoundManager.noSoundValue, forKey: AlarmSoundManager.selectionKey)
 
         XCTAssertNil(AlarmSoundManager.selectedFilename(defaults: defaults))
     }
@@ -57,6 +69,17 @@ final class AlarmSoundManagerTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set("missing.mp3", forKey: AlarmSoundManager.selectionKey)
+
+        XCTAssertNil(AlarmSoundManager.selectedFilename(
+            defaults: defaults,
+            availableFilenames: ["default-1.mp3"]
+        ))
+    }
+
+    func testMissingBundledDefaultFallsBackToNoSound() {
+        let suiteName = "AlarmSoundManagerTests.MissingDefault"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
 
         XCTAssertNil(AlarmSoundManager.selectedFilename(
             defaults: defaults,

@@ -11,6 +11,7 @@ public final class AlarmSoundManager {
     public static let shared = AlarmSoundManager()
     public static let selectionKey = "Cawernda.AlarmSoundFilename"
     public static let noSoundValue = ""
+    public static let defaultSoundFilename = "Morning String Rift.mp3"
 
     private var player: AVAudioPlayer?
 
@@ -82,7 +83,7 @@ public final class AlarmSoundManager {
         defaults: UserDefaults = .standard,
         availableFilenames: [String]? = nil
     ) -> String? {
-        let filename = defaults.string(forKey: selectionKey) ?? noSoundValue
+        let filename = defaults.string(forKey: selectionKey) ?? defaultSoundFilename
         guard !filename.isEmpty else { return nil }
         guard let availableFilenames else { return filename }
         return availableFilenames.contains {
