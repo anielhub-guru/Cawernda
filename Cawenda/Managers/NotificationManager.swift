@@ -67,4 +67,11 @@ public class NotificationManager {
         if Bundle.main.bundleIdentifier == nil { return }
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["lowBatteryAlert"])
     }
+
+    public static func dismissReminderNotifications(taskIDs: [UUID]) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        let identifiers = taskIDs.map(\.uuidString)
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
 }

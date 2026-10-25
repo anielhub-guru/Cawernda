@@ -20,6 +20,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     public var lockOverlayController: LockOverlayController!
     public var batteryManager: BatteryManager!
     public var breakManager: BreakManager!
+    public var presentationModeStore: PresentationModeStore!
     private var startupReminderOverlayController: StartupReminderOverlayController!
 
     private var taskTimer: Timer?
@@ -52,16 +53,24 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         taskStore = TaskStore()
+        presentationModeStore = PresentationModeStore()
+        updateSuppressedReminderState()
         popupManager = PopupManager(taskStore: taskStore)
         menuBarController = MenuBarController(
             taskStore: taskStore,
+            presentationModeStore: presentationModeStore,
+            onSetPresentationMode: { [weak self] isEnabled in
+                self?.setPresentationMode(isEnabled)
+            },
             onCompleteReminder: { [weak popupManager] taskID in
                 popupManager?.dismissPopup(taskID: taskID)
             }
         )
         commandWindowController = CommandWindowController()
         hotkeyManager = HotkeyManager()
-        lockOverlayController = LockOverlayController()
+        lockOverlayController = LockOverlayController { [weak self] in
+            self?.presentationModeStore?.isEnabled == true
+        }
         startupReminderOverlayController = StartupReminderOverlayController()
         breakManager = BreakManager(appDelegate: self)
 
@@ -150,6 +159,9 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         if useSystemNotifications {
             NotificationManager.requestAuthorization()
         }
+        if presentationModeStore.isEnabled {
+            suppressCurrentInterruptionsForPresentationMode()
+        }
 
         startTaskTimer()
         startReminderReviewScheduling()
@@ -185,6 +197,13 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private func checkTasks() {
         let now = taskStore.now()
         let firingTasks = taskStore.activeTasks.filter { $0.reminderFiresAt <= now && !$0.reminderFired }
+
+        if presentationModeStore.isEnabled {
+            presentationModeStore.updateSuppressedReminders(!firingTasks.isEmpty)
+            return
+        }
+        presentationModeStore.updateSuppressedReminders(false)
+
         let hasSelectedAlarmSound = AlarmSoundManager.selectedFilename(
             availableFilenames: AlarmSoundManager.availableSoundFilenames
         ) != nil
@@ -245,6 +264,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func resolvePendingDailyPlanningCheck() {
         guard dailyPlanningCheckPending else { return }
+        guard !presentationModeStore.isEnabled else { return }
 
         let now = taskStore.now()
         let lastCheckedAt = UserDefaults.standard.object(forKey: lastDailyPlanningCheckDateKey) as? Date
@@ -274,6 +294,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showReminderReviewIfNeeded(force: Bool = false) {
+        guard !presentationModeStore.isEnabled else { return }
         let now = taskStore.now()
         let isBusy = lockOverlayController.isVisible
             || popupManager.hasVisibleAlerts
@@ -329,6 +350,10 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleBatteryStateChange(_ state: BatteryState) {
+        guard !presentationModeStore.isEnabled else {
+            dismissBatteryAlerts()
+            return
+        }
         guard enableLowBatteryAlert else {
             dismissBatteryAlerts()
             lastAlertedBatteryPercentage = nil
@@ -370,5 +395,40 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private func dismissBatteryAlerts() {
         NotificationManager.dismissLowBatteryNotification()
         popupManager.dismissBatteryPopup()
+    }
+
+    private func setPresentationMode(_ isEnabled: Bool) {
+        presentationModeStore.setEnabled(isEnabled)
+
+        if isEnabled {
+            suppressCurrentInterruptionsForPresentationMode()
+        } else {
+            breakManager.resetBreakTimer()
+            checkTasks()
+            resolvePendingDailyPlanningCheck()
+        }
+    }
+
+    private func updateSuppressedReminderState() {
+        guard presentationModeStore.isEnabled else {
+            presentationModeStore.updateSuppressedReminders(false)
+            return
+        }
+        let now = taskStore.now()
+        let hasWaitingReminder = taskStore.activeTasks.contains {
+            $0.reminderFiresAt <= now && !$0.reminderFired
+        }
+        presentationModeStore.updateSuppressedReminders(hasWaitingReminder)
+    }
+
+    private func suppressCurrentInterruptionsForPresentationMode() {
+        taskStore.deferDueAlerts(at: taskStore.now())
+        popupManager.suppressAllReminderPopups()
+        dismissBatteryAlerts()
+        startupReminderOverlayController.dismiss()
+        lockOverlayController.dismiss()
+        AlarmSoundManager.shared.stop()
+        NotificationManager.dismissReminderNotifications(taskIDs: taskStore.activeTasks.map(\.id))
+        updateSuppressedReminderState()
     }
 }

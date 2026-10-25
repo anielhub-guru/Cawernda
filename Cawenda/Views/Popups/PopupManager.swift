@@ -82,6 +82,20 @@ public class PopupManager: ObservableObject {
         }
     }
 
+    public func suppressAllReminderPopups() {
+        alarmSoundController.stop()
+        visiblePopups.forEach { popup in
+            popup.panel?.orderOut(nil)
+            popup.panel?.close()
+            popup.panel = nil
+        }
+        visiblePopups.removeAll()
+        overflowPopups.removeAll()
+        moreIndicatorPanel?.orderOut(nil)
+        moreIndicatorPanel?.close()
+        moreIndicatorPanel = nil
+    }
+
     public func handleAction(_ action: PopupAction, for taskID: UUID) {
         switch action {
         case .done:

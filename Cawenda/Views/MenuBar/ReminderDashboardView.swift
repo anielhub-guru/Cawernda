@@ -10,6 +10,8 @@ private enum ReminderDashboardMode: String, CaseIterable, Identifiable {
 public struct ReminderDashboardView: View {
     @Environment(\.openSettings) private var openSettings
     @ObservedObject var taskStore: TaskStore
+    @ObservedObject var presentationModeStore: PresentationModeStore
+    let onSetPresentationMode: (Bool) -> Void
     let onCompleteReminder: (UUID) -> Void
     let onPreferredHeightChange: (CGFloat) -> Void
     @State private var mode: ReminderDashboardMode = .active
@@ -17,6 +19,7 @@ public struct ReminderDashboardView: View {
     @State private var taskToEdit: ReminderTask?
     @State private var reuseDate = Date()
     @State private var isConfirmingHistoryDeletion = false
+    @State private var isReminderContentRevealed = false
 
     private var sections: [ReminderSection] {
         ReminderGrouping.sections(for: taskStore.activeTasks, now: taskStore.now())
@@ -24,10 +27,14 @@ public struct ReminderDashboardView: View {
 
     public init(
         taskStore: TaskStore,
+        presentationModeStore: PresentationModeStore,
+        onSetPresentationMode: @escaping (Bool) -> Void = { _ in },
         onCompleteReminder: @escaping (UUID) -> Void = { _ in },
         onPreferredHeightChange: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.taskStore = taskStore
+        self.presentationModeStore = presentationModeStore
+        self.onSetPresentationMode = onSetPresentationMode
         self.onCompleteReminder = onCompleteReminder
         self.onPreferredHeightChange = onPreferredHeightChange
     }
@@ -40,59 +47,63 @@ public struct ReminderDashboardView: View {
 
             Divider()
 
-            Picker("Reminder view", selection: $mode) {
-                ForEach(ReminderDashboardMode.allCases) { viewMode in
-                    Text(viewMode.rawValue).tag(viewMode)
+            if presentationModeStore.isEnabled && !isReminderContentRevealed {
+                presentationModePrivacyView
+            } else {
+                Picker("Reminder view", selection: $mode) {
+                    ForEach(ReminderDashboardMode.allCases) { viewMode in
+                        Text(viewMode.rawValue).tag(viewMode)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
 
-            Divider()
+                Divider()
 
-            Group {
-                if mode == .active {
-                    if sections.isEmpty {
-                        activeEmptyState
-                    } else {
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 18) {
-                                ForEach(sections) { section in
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        sectionHeader(section)
+                Group {
+                    if mode == .active {
+                        if sections.isEmpty {
+                            activeEmptyState
+                        } else {
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 18) {
+                                    ForEach(sections) { section in
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            sectionHeader(section)
 
-                                        ForEach(section.tasks) { task in
-                                            ReminderListRow(
-                                                task: task,
-                                                bucket: section.bucket,
-                                                store: taskStore,
-                                                onComplete: onCompleteReminder,
-                                                onEdit: { taskToEdit = task }
-                                            )
-                                        }
-
-                                        Color.clear
-                                            .frame(height: 6)
-                                            .dropDestination(for: String.self) { values, _ in
-                                                guard let value = values.first,
-                                                      let taskID = UUID(uuidString: value) else {
-                                                    return false
-                                                }
-                                                taskStore.reorder(taskID: taskID, before: nil, in: section.bucket)
-                                                return true
+                                            ForEach(section.tasks) { task in
+                                                ReminderListRow(
+                                                    task: task,
+                                                    bucket: section.bucket,
+                                                    store: taskStore,
+                                                    onComplete: onCompleteReminder,
+                                                    onEdit: { taskToEdit = task }
+                                                )
                                             }
+
+                                            Color.clear
+                                                .frame(height: 6)
+                                                .dropDestination(for: String.self) { values, _ in
+                                                    guard let value = values.first,
+                                                          let taskID = UUID(uuidString: value) else {
+                                                        return false
+                                                    }
+                                                    taskStore.reorder(taskID: taskID, before: nil, in: section.bucket)
+                                                    return true
+                                                }
+                                        }
                                     }
                                 }
+                                .padding(16)
                             }
-                            .padding(16)
                         }
+                    } else if taskStore.historyTasks.isEmpty {
+                        historyEmptyState
+                    } else {
+                        historyList
                     }
-                } else if taskStore.historyTasks.isEmpty {
-                    historyEmptyState
-                } else {
-                    historyList
                 }
             }
         }
@@ -137,11 +148,17 @@ public struct ReminderDashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenSettingsWindow"))) { _ in
             openSettingsWindow()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ResetDashboardPrivacy"))) { _ in
+            isReminderContentRevealed = false
+        }
         .onAppear {
             onPreferredHeightChange(preferredHeight)
         }
         .onChange(of: preferredHeight) { _, newHeight in
             onPreferredHeightChange(newHeight)
+        }
+        .onChange(of: presentationModeStore.isEnabled) { _, isEnabled in
+            if !isEnabled { isReminderContentRevealed = false }
         }
     }
 
@@ -157,7 +174,7 @@ public struct ReminderDashboardView: View {
 
             Spacer()
 
-            if mode == .history && !taskStore.historyTasks.isEmpty {
+            if !presentationModeStore.isEnabled && mode == .history && !taskStore.historyTasks.isEmpty {
                 Button {
                     isConfirmingHistoryDeletion = true
                 } label: {
@@ -167,6 +184,21 @@ public struct ReminderDashboardView: View {
                 .buttonStyle(.borderless)
                 .help("Delete history")
             }
+
+            Button {
+                let shouldEnable = !presentationModeStore.isEnabled
+                isReminderContentRevealed = false
+                onSetPresentationMode(shouldEnable)
+            } label: {
+                Image(systemName: "rectangle.on.rectangle")
+                    .frame(width: 28, height: 28)
+                    .background(presentationModeStore.isEnabled ? Color.blue : Color.clear)
+                    .foregroundStyle(presentationModeStore.isEnabled ? Color.white : Color.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help(presentationModeStore.isEnabled ? "Turn off Presentation Mode" : "Turn on Presentation Mode")
+            .accessibilityLabel(presentationModeStore.isEnabled ? "Presentation Mode on" : "Presentation Mode off")
 
             Button {
                 openSettingsWindow()
@@ -193,6 +225,11 @@ public struct ReminderDashboardView: View {
     }
 
     private var summary: String {
+        if presentationModeStore.isEnabled && !isReminderContentRevealed {
+            return presentationModeStore.hasSuppressedReminders
+                ? "Presentation Mode · reminder waiting"
+                : "Presentation Mode · interruptions hidden"
+        }
         if mode == .history {
             let count = taskStore.historyTasks.count
             return count == 1 ? "1 past reminder" : "\(count) past reminders"
@@ -203,6 +240,9 @@ public struct ReminderDashboardView: View {
     }
 
     private var preferredHeight: CGFloat {
+        if presentationModeStore.isEnabled && !isReminderContentRevealed {
+            return 360
+        }
         let chromeHeight: CGFloat = 142
 
         switch mode {
@@ -220,6 +260,42 @@ public struct ReminderDashboardView: View {
             guard !taskStore.historyTasks.isEmpty else { return 360 }
             return max(360, chromeHeight + 32 + CGFloat(taskStore.historyTasks.count * 82))
         }
+    }
+
+    private var presentationModePrivacyView: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(presentationModeStore.hasSuppressedReminders ? Color.orange : Color.blue)
+                    .frame(width: 58, height: 58)
+                Image(systemName: presentationModeStore.hasSuppressedReminders ? "bell.badge.fill" : "rectangle.on.rectangle")
+                    .font(.system(size: 25, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+
+            Text(presentationModeStore.hasSuppressedReminders ? "A reminder is waiting" : "Presentation Mode is on")
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+
+            Text("Reminder details and Cawenda interruptions stay hidden while you present.")
+                .font(.system(size: 12, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 290)
+
+            if presentationModeStore.hasSuppressedReminders {
+                Button("View Reminders") {
+                    isReminderContentRevealed = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Button("Turn Off Presentation Mode") {
+                onSetPresentationMode(false)
+            }
+            .buttonStyle(.borderless)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(28)
     }
 
     private func openSettingsWindow() {

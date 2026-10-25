@@ -57,6 +57,7 @@ public final class BreakManager: ObservableObject {
 
     private func checkBreak() {
         guard isEnabled, let appDelegate = appDelegate else { return }
+        guard !appDelegate.presentationModeStore.isEnabled else { return }
 
         let elapsed = Date().timeIntervalSince(lastBreakTime)
         if elapsed >= breakInterval {

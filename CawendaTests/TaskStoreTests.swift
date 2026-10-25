@@ -413,4 +413,31 @@ final class TaskStoreTests: XCTestCase {
         XCTAssertTrue(updatedTask.reminderFired)
         XCTAssertEqual(updatedTask.reminderFiredAt, dateToInject)
     }
+
+    func testDeferringDueAlertsResetsOnlyDueActiveReminders() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        store = TaskStore(defaults: userDefaults, now: { now })
+        let due = ReminderTask(
+            title: "Due",
+            reminderFiresAt: now.addingTimeInterval(-60),
+            reminderFired: true,
+            reminderFiredAt: now.addingTimeInterval(-30)
+        )
+        let future = ReminderTask(
+            title: "Future",
+            reminderFiresAt: now.addingTimeInterval(600),
+            reminderFired: true,
+            reminderFiredAt: now
+        )
+        store.add(task: due)
+        store.add(task: future)
+
+        store.deferDueAlerts(at: now)
+
+        let updatedDue = try XCTUnwrap(store.tasks.first { $0.id == due.id })
+        let updatedFuture = try XCTUnwrap(store.tasks.first { $0.id == future.id })
+        XCTAssertFalse(updatedDue.reminderFired)
+        XCTAssertNil(updatedDue.reminderFiredAt)
+        XCTAssertTrue(updatedFuture.reminderFired)
+    }
 }

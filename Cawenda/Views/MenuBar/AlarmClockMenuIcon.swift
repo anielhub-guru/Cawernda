@@ -1,9 +1,19 @@
 import AppKit
 
 enum AlarmClockMenuIcon {
-    static func make() -> NSImage {
+    static func make(state: PresentationModeIndicatorState = .normal) -> NSImage {
         let image = NSImage(size: NSSize(width: 19, height: 18), flipped: false) { _ in
-            NSColor.labelColor.setStroke()
+            if state != .normal {
+                let backgroundColor: NSColor = state == .waiting ? .systemOrange : .systemBlue
+                backgroundColor.setFill()
+                NSBezierPath(
+                    roundedRect: NSRect(x: 0.25, y: 0.25, width: 18.5, height: 17.5),
+                    xRadius: 5.5,
+                    yRadius: 5.5
+                ).fill()
+            }
+
+            (state == .normal ? NSColor.labelColor : NSColor.white).setStroke()
 
             let body = NSBezierPath(ovalIn: NSRect(x: 3.25, y: 2.35, width: 12.5, height: 12.5))
             body.lineWidth = 1.75
@@ -64,8 +74,12 @@ enum AlarmClockMenuIcon {
             center.stroke()
             return true
         }
-        image.isTemplate = true
-        image.accessibilityDescription = "Cawenda alarms"
+        image.isTemplate = state == .normal
+        image.accessibilityDescription = switch state {
+        case .normal: "Cawenda reminders"
+        case .active: "Cawenda Presentation Mode is on"
+        case .waiting: "Cawenda reminder waiting in Presentation Mode"
+        }
         return image
     }
 }

@@ -221,6 +221,21 @@ public class TaskStore: ObservableObject {
         }
     }
 
+    public func deferDueAlerts(at date: Date) {
+        var didChange = false
+
+        for index in tasks.indices where tasks[index].reminderFiresAt <= date {
+            guard tasks[index].state == .active || tasks[index].state == .stillRunning else { continue }
+            if tasks[index].reminderFired || tasks[index].reminderFiredAt != nil {
+                tasks[index].reminderFired = false
+                tasks[index].reminderFiredAt = nil
+                didChange = true
+            }
+        }
+
+        if didChange { save() }
+    }
+
     public func clearCompleted() {
         tasks.removeAll { $0.state == .done }
         save()

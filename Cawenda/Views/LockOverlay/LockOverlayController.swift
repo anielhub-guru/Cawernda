@@ -12,6 +12,7 @@ public final class LockOverlayController: NSObject {
     private var localEventMonitor: Any?
     private var breakStore = BreakStore()
     private var wakeObservers: [NSObjectProtocol] = []
+    private let shouldSuppress: () -> Bool
 
     public var onDismiss: (() -> Void)?
     public var isVisible: Bool { !panels.isEmpty }
@@ -19,7 +20,8 @@ public final class LockOverlayController: NSObject {
     // Rotating break prompt index in-memory (not persisted)
     private static var promptIndex = 0
 
-    public override init() {
+    public init(shouldSuppress: @escaping () -> Bool = { false }) {
+        self.shouldSuppress = shouldSuppress
         super.init()
         observeWakeEvents()
 
@@ -29,6 +31,7 @@ public final class LockOverlayController: NSObject {
     }
 
     public func show(duration: TimeInterval) {
+        guard !shouldSuppress() else { return }
         closePanels()
 
         let prompts = BreakPrompt.allCases
@@ -40,6 +43,7 @@ public final class LockOverlayController: NSObject {
     }
 
     public func restoreActiveBreakIfNeeded() {
+        guard !shouldSuppress() else { return }
         guard let session = breakStore.activeBreakSession else { return }
 
         if session.endsAt <= Date() {

@@ -1,18 +1,25 @@
 import AppKit
 import SwiftUI
+import Combine
 
 @MainActor
 public class MenuBarController {
     private var statusItem: NSStatusItem
     private var popover: NSPopover
     private var taskStore: TaskStore
+    private let presentationModeStore: PresentationModeStore
     private var preferredContentHeight: CGFloat = 560
+    private var cancellables: Set<AnyCancellable> = []
+    private var popoverCloseObserver: NSObjectProtocol?
 
     public init(
         taskStore: TaskStore,
+        presentationModeStore: PresentationModeStore,
+        onSetPresentationMode: @escaping (Bool) -> Void,
         onCompleteReminder: @escaping (UUID) -> Void
     ) {
         self.taskStore = taskStore
+        self.presentationModeStore = presentationModeStore
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = AlarmClockMenuIcon.make()
@@ -26,6 +33,8 @@ public class MenuBarController {
         popover.contentViewController = NSHostingController(
             rootView: ReminderDashboardView(
                 taskStore: taskStore,
+                presentationModeStore: presentationModeStore,
+                onSetPresentationMode: onSetPresentationMode,
                 onCompleteReminder: onCompleteReminder,
                 onPreferredHeightChange: { [weak self] height in
                     self?.updatePopoverHeight(height)
@@ -34,6 +43,20 @@ public class MenuBarController {
         )
 
         statusItem.button?.target = self
+        presentationModeStore.$isEnabled
+            .combineLatest(presentationModeStore.$hasSuppressedReminders)
+            .sink { [weak self] _, _ in
+                self?.updateStatusItemIcon()
+            }
+            .store(in: &cancellables)
+
+        popoverCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSPopover.didCloseNotification,
+            object: popover,
+            queue: .main
+        ) { _ in
+            NotificationCenter.default.post(name: NSNotification.Name("ResetDashboardPrivacy"), object: nil)
+        }
     }
 
     @objc private func showCommandWindowFromMenu() {
@@ -90,5 +113,14 @@ public class MenuBarController {
             width: 420,
             height: min(max(360, preferredHeight), maximumHeight)
         )
+    }
+
+    private func updateStatusItemIcon() {
+        statusItem.button?.image = AlarmClockMenuIcon.make(state: presentationModeStore.indicatorState)
+        statusItem.button?.toolTip = switch presentationModeStore.indicatorState {
+        case .normal: "Cawenda"
+        case .active: "Presentation Mode is on"
+        case .waiting: "A reminder is waiting"
+        }
     }
 }
